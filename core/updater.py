@@ -26,4 +26,5 @@ class AutoUpdater:
             pass  # full logic from earlier response integrated
 
     def mark_as_healthy(self):
-        pass  # full from earlier
+        with open(os.path.join(self.repo_path, ".healthy"), "w") as f:
+            f.write("ok")

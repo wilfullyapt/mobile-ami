@@ -7,5 +7,5 @@ class LEDs:
     def set_color(self, color):
         if color == "green": self.strip.set_pixel(0, 0, 255, 0)
         elif color == "blue": self.strip.set_pixel(0, 0, 0, 255)
-        elif color == "red": self.strip.set_pixel(0, 255, 0)
+        elif color == "red": self.strip.set_pixel(0, 255, 0, 0)
         self.strip.show()

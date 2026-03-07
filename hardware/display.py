@@ -11,6 +11,10 @@ class StatusDisplay:
         self.big_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 12)
 
     def update(self, battery_pct, voltage, net_state, ssid, mode, status_text="Ready"):
+        self._last = {
+            "battery_pct": battery_pct, "voltage": voltage, "net_state": net_state,
+            "ssid": ssid, "mode": mode, "status_text": status_text,
+        }
         image = Image.new("1", (self.device.width, self.device.height))
         draw = ImageDraw.Draw(image)
         draw.text((0, 0), f"Bat: {battery_pct}% {voltage}V", font=self.font, fill=255)
@@ -20,8 +24,9 @@ class StatusDisplay:
         self.device.display(image)
 
     def refresh(self):
-        pass  # triggered by button
+        if hasattr(self, "_last"):
+            self.update(**self._last)
 
     def update_mode(self, mode):
-        # called from cycle
-        pass
+        if hasattr(self, "_last"):
+            self.update(**{**self._last, "mode": mode})

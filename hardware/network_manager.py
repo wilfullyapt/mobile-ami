@@ -5,6 +5,10 @@ class NetworkManager:
         self.state = "connected"
         self.ssid = "MyVoiceAI"
 
+    def has_internet(self):
+        result = subprocess.run(["ping", "-c", "1", "-W", "2", "8.8.8.8"], capture_output=True)
+        return result.returncode == 0
+
     def cycle_state(self):
         states = ["connected", "hotspot", "offline"]
         idx = states.index(self.state)

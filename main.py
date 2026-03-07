@@ -12,7 +12,7 @@ from core.updater import AutoUpdater
 from core.agent_manager import AgentManager
 from core.wake_detector import WakeDetector
 from core.vad import VAD
-from core.stt import STT
+from core.sst import STT
 from core.llm import LLM
 from core.tts import TTS
 from agents.base_agent import BaseAgent
@@ -66,6 +66,10 @@ class VoiceAssistant:
         self.leds.set_color("blue")
         self.tts.speak("Listening")
         audio = self.audio.record_until_silence(self.vad)
+        if audio.size == 0:
+            self.is_listening = False
+            self.leds.set_color("green")
+            return
         text = self.stt.transcribe(audio)
         if text:
             agent = self.agent_manager.get_current_agent()

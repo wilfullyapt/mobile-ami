@@ -3,7 +3,9 @@ import numpy as np
 
 class AudioManager:
     def get_chunk(self):
-        return sd.rec(1024, samplerate=16000, channels=1, dtype='int16').flatten()
+        chunk = sd.rec(1024, samplerate=16000, channels=1, dtype='int16')
+        sd.wait()
+        return chunk.flatten()
 
     def record_until_silence(self, vad):
         frames = []
@@ -14,6 +16,8 @@ class AudioManager:
                     frames.append(data)
                 elif len(frames) > 10:
                     break
+        if not frames:
+            return np.array([], dtype='int16')
         return np.concatenate(frames)
 
     def play(self, audio):
