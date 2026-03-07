@@ -1,0 +1,14 @@
+[Unit]
+Description=Local AI Voice Assistant
+After=network.target hailo.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/opt/voice-assistant
+ExecStart=/usr/bin/python3 /opt/voice-assistant/main.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

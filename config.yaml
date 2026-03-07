@@ -1,0 +1,12 @@
+auto_update:
+  enabled: true
+  channel: stable
+  check_interval_sec: 1800
+  min_battery_pct: 30
+  health_check_retries: 3
+
+button_pins:
+  power: 17
+  action: 27
+  interaction: 22
+default_agent: "qa"

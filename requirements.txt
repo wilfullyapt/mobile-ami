@@ -1,0 +1,14 @@
+gpiozero
+luma.oled
+pillow
+qrcode[pil]
+packaging
+smbus2
+pyyaml
+openwakeword
+webrtcvad
+faster-whisper
+ollama
+sounddevice
+numpy
+apa102
