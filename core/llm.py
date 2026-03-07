@@ -1,8 +1,70 @@
+import logging
+from typing import Optional
+
 import ollama
 
-class LLM:
-    def query(self, prompt: str):
-        response = ollama.chat(model="llama3.2:1b", messages=[{"role": "user", "content": prompt}])
-        return response['message']['content']
+from core.model_registry import ModelSpec
 
-    # NOTE: For Hailo acceleration, use llama.cpp with Hailo backend or official Hailo LLM examples
+logger = logging.getLogger(__name__)
+
+
+class LLM:
+    """
+    Ollama-backed LLM wrapper.
+
+    Supports plain chat and tool-calling chat. The model name is taken
+    from the ModelSpec so it can be changed via the orchestrator without
+    modifying code.
+    """
+
+    def __init__(self, spec: ModelSpec):
+        self._model = spec.name
+
+    def query(self, prompt: str) -> str:
+        """Simple single-turn query, returns assistant text."""
+        response = ollama.chat(
+            model=self._model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response["message"]["content"]
+
+    def chat(self, messages: list[dict]) -> str:
+        """Multi-turn chat with a messages list, returns assistant text."""
+        response = ollama.chat(model=self._model, messages=messages)
+        return response["message"]["content"]
+
+    def chat_with_tools(
+        self,
+        messages: list[dict],
+        tools: Optional[list[dict]] = None,
+    ) -> tuple[str, list[dict]]:
+        """
+        Send a messages list with optional tool schemas to Ollama.
+
+        Returns:
+            (text_response, tool_calls)
+            tool_calls is a list of dicts: [{"name": str, "args": dict}, ...]
+            If the model chose not to call any tools, tool_calls is [].
+        """
+        kwargs = {"model": self._model, "messages": messages}
+        if tools:
+            kwargs["tools"] = tools
+
+        response = ollama.chat(**kwargs)
+        msg = response["message"]
+
+        text = msg.get("content") or ""
+        raw_calls = msg.get("tool_calls") or []
+
+        parsed_calls = []
+        for call in raw_calls:
+            fn = call.get("function", {})
+            parsed_calls.append({
+                "name": fn.get("name", ""),
+                "args": fn.get("arguments", {}),
+            })
+
+        return text, parsed_calls
+
+    # NOTE: For Hailo acceleration, compile llama.cpp with the Hailo backend
+    # and point ollama at the resulting binary, or use the official Hailo LLM SDK.

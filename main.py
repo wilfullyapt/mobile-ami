@@ -1,82 +1,112 @@
-import yaml
+import logging
+import os
 import threading
 import time
-import os
+
+import yaml
+
+from hardware.audio import AudioManager
 from hardware.buttons import DeviceButtons
 from hardware.display import StatusDisplay
+from hardware.leds import LEDs
 from hardware.network_manager import NetworkManager
 from hardware.power import get_battery
-from hardware.leds import LEDs
-from hardware.audio import AudioManager
-from core.updater import AutoUpdater
+
+from core.model_registry import ModelRegistry, ModelRole
+from core.model_orchestrator import ModelOrchestrator
 from core.agent_manager import AgentManager
-from core.wake_detector import WakeDetector
-from core.vad import VAD
-from core.sst import STT
-from core.llm import LLM
-from core.tts import TTS
-from agents.base_agent import BaseAgent
+from core.pipeline import VoicePipeline
+from core.updater import AutoUpdater
+
+from agents.tools.tool_registry import ToolRegistry
+from agents.tools.timer_tool import TimerTool
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
 
 class VoiceAssistant:
     def __init__(self):
         with open("config.yaml") as f:
             self.config = yaml.safe_load(f)
 
+        # ── Model layer ────────────────────────────────────────────────
+        registry = ModelRegistry(self.config["models"])
+        self.orchestrator = ModelOrchestrator(registry)
+        self.orchestrator.preload_eager()   # loads VAD + wake detector at startup
+
+        # ── Tool layer ─────────────────────────────────────────────────
+        self.tool_registry = ToolRegistry()
+        self.tool_registry.register(TimerTool(on_speak=self._tts_speak))
+
+        # ── Agent layer ────────────────────────────────────────────────
+        self.agent_manager = AgentManager(
+            slugs=["qa", "block_timer"],
+            orchestrator=self.orchestrator,
+            tool_registry=self.tool_registry,
+        )
+
+        # ── Hardware layer ─────────────────────────────────────────────
         self.display = StatusDisplay()
         self.network = NetworkManager()
         self.leds = LEDs()
         self.audio = AudioManager()
-        self.power = get_battery
         self.updater = AutoUpdater(self.network, self.config)
-        self.agent_manager = AgentManager(["qa", "block_timer"])
         self.buttons = DeviceButtons(self.config, self.display, self.network, self)
-        self.wake_detector = WakeDetector()
-        self.vad = VAD()
-        self.stt = STT()
-        self.llm = LLM()
-        self.tts = TTS()
+
+        # ── Pipeline ───────────────────────────────────────────────────
+        self.pipeline = VoicePipeline(
+            orchestrator=self.orchestrator,
+            agent_manager=self.agent_manager,
+            audio=self.audio,
+            leds=self.leds,
+            on_speak=self._tts_speak,
+        )
 
         self.current_mode = "hotword"
-        self.is_listening = False
 
-        # Background threads
+        # ── Background threads ─────────────────────────────────────────
         threading.Thread(target=self._status_loop, daemon=True).start()
-        threading.Thread(target=self._wake_loop, daemon=True).start()
 
         self.display.update(50, 4.1, "connected", "HomeWiFi", self.agent_manager.current, "Ready")
         self.leds.set_color("green")
         self.updater.mark_as_healthy()
 
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _tts_speak(self, text: str):
+        self.orchestrator.get(ModelRole.TTS).speak(text)
+
+    # ------------------------------------------------------------------
+    # Background threads
+    # ------------------------------------------------------------------
+
     def _status_loop(self):
         while True:
-            bat, volt = self.power()
+            bat, volt = get_battery()
             self.display.update(bat, volt, self.network.state, self.network.ssid, self.agent_manager.current)
             time.sleep(30)
 
-    def _wake_loop(self):
-        while True:
-            if self.current_mode == "hotword" and not self.is_listening:
-                audio_chunk = self.audio.get_chunk()
-                if self.wake_detector.detect(audio_chunk):
-                    self.trigger_listening()
-            time.sleep(0.05)
+    # ------------------------------------------------------------------
+    # Entry point: blocking wake loop runs on main thread
+    # ------------------------------------------------------------------
+
+    def run(self):
+        if self.current_mode == "hotword":
+            self.pipeline.wake_loop(self.audio.get_chunk)
+        else:
+            while True:
+                time.sleep(1)
+
+    # ------------------------------------------------------------------
+    # Button handlers (called by DeviceButtons)
+    # ------------------------------------------------------------------
 
     def trigger_listening(self):
-        self.is_listening = True
-        self.leds.set_color("blue")
-        self.tts.speak("Listening")
-        audio = self.audio.record_until_silence(self.vad)
-        if audio.size == 0:
-            self.is_listening = False
-            self.leds.set_color("green")
-            return
-        text = self.stt.transcribe(audio)
-        if text:
-            agent = self.agent_manager.get_current_agent()
-            response = agent.process(text)
-            self.tts.speak(response)
-        self.is_listening = False
-        self.leds.set_color("green")
+        """Manual trigger: run one pipeline cycle immediately."""
+        self.pipeline.run_once()
 
     def action_click_handler(self):
         if self.current_mode == "manual":
@@ -87,15 +117,17 @@ class VoiceAssistant:
         self.display.update_mode(self.agent_manager.current)
 
     def graceful_shutdown(self):
-        self.tts.speak("Shutting down")
+        self._tts_speak("Shutting down")
         self.leds.set_color("red")
+        self.orchestrator.shutdown()
         time.sleep(2)
         os.system("sudo systemctl poweroff")
+
 
 if __name__ == "__main__":
     app = VoiceAssistant()
     try:
-        while True:
-            time.sleep(1)
+        app.run()
     except KeyboardInterrupt:
-        print("Exiting")
+        logger.info("Interrupted — shutting down")
+        app.orchestrator.shutdown()

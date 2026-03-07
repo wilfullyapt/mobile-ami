@@ -1,3 +1,40 @@
+models:
+  stt:
+    name: tiny
+    backend: cpu
+    quant: int8
+    path: null            # faster-whisper manages its own cache
+    version: tiny
+    eager: false
+  tts:
+    name: en_US-lessac-medium
+    backend: cpu
+    quant: none
+    path: /opt/voice-assistant/piper-voices/en_US-lessac-medium.onnx
+    version: medium
+    eager: false
+  llm:
+    name: llama3.2:1b
+    backend: cpu
+    quant: none
+    path: null            # managed by ollama
+    version: "1b"
+    eager: false
+  wake:
+    name: hey_assistant
+    backend: cpu
+    quant: none
+    path: null            # openwakeword downloads automatically
+    version: hey_assistant
+    eager: true           # loaded at startup for instant detection
+  vad:
+    name: webrtcvad
+    backend: cpu
+    quant: none
+    path: null
+    version: "2"          # sensitivity level (0-3)
+    eager: true
+
 auto_update:
   enabled: true
   channel: stable
@@ -9,4 +46,5 @@ button_pins:
   power: 17
   action: 27
   interaction: 22
+
 default_agent: "qa"
