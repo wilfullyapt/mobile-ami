@@ -12,3 +12,4 @@ ollama
 sounddevice
 numpy
 apa102
+pytest
