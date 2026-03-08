@@ -1,6 +1,7 @@
 """Unit tests for core/model_registry.py"""
 
 import pytest
+from unittest.mock import MagicMock
 from core.model_registry import (
     Backend,
     ModelRegistry,
@@ -192,3 +193,59 @@ class TestModelRegistry:
         assert spec.path is None
         assert spec.eager is False
         assert spec.version == "tiny"
+
+
+# ---------------------------------------------------------------------------
+# TestModelRegistryWithPaths — AmiPaths integration
+# ---------------------------------------------------------------------------
+
+class TestModelRegistryWithPaths:
+    """Verify that ModelRegistry resolves paths via AmiPaths when provided."""
+
+    def _make_paths(self, tmp_path):
+        from core.ami_paths import AmiPaths
+        p = AmiPaths(root=str(tmp_path / "amini"))
+        p.ensure_dirs()
+        return p
+
+    def test_null_path_resolves_to_model_dir(self, tmp_path):
+        paths = self._make_paths(tmp_path)
+        cfg = {"stt": {"name": "tiny", "path": None}}
+        registry = ModelRegistry(cfg, paths)
+        spec = registry.get(ModelRole.STT)
+        assert spec.path == str(paths.model_dir("stt"))
+
+    def test_bare_filename_resolves_under_role_dir(self, tmp_path):
+        paths = self._make_paths(tmp_path)
+        cfg = {"tts": {"name": "en_US-lessac-medium", "path": "en_US-lessac-medium.onnx"}}
+        registry = ModelRegistry(cfg, paths)
+        spec = registry.get(ModelRole.TTS)
+        assert spec.path == str(paths.model_dir("tts") / "en_US-lessac-medium.onnx")
+
+    def test_absolute_path_preserved(self, tmp_path):
+        paths = self._make_paths(tmp_path)
+        cfg = {"tts": {"name": "en_US-lessac-medium", "path": "/abs/path/model.onnx"}}
+        registry = ModelRegistry(cfg, paths)
+        spec = registry.get(ModelRole.TTS)
+        assert spec.path == "/abs/path/model.onnx"
+
+    def test_no_paths_arg_preserves_original_behaviour(self):
+        """Existing tests pass no paths — path from config returned as-is."""
+        cfg = {"tts": {"name": "en_US-lessac-medium", "path": "/opt/piper/model.onnx"}}
+        registry = ModelRegistry(cfg)
+        spec = registry.get(ModelRole.TTS)
+        assert spec.path == "/opt/piper/model.onnx"
+
+    def test_no_paths_null_path_stays_none(self):
+        cfg = {"stt": {"name": "tiny", "path": None}}
+        registry = ModelRegistry(cfg)
+        spec = registry.get(ModelRole.STT)
+        assert spec.path is None
+
+    def test_all_roles_get_distinct_dirs(self, tmp_path):
+        paths = self._make_paths(tmp_path)
+        cfg = {role: {"name": role, "path": None} for role in ("stt", "tts", "llm", "wake", "vad")}
+        registry = ModelRegistry(cfg, paths)
+        resolved = [registry.get(ModelRole(r)).path for r in ("stt", "tts", "llm", "wake", "vad")]
+        # All paths are distinct
+        assert len(set(resolved)) == len(resolved)

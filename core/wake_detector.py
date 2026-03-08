@@ -11,7 +11,8 @@ class WakeDetector:
     """
 
     def __init__(self, spec: ModelSpec):
-        openwakeword.utils.download_models()  # no-op if already cached
+        # spec.path is ~/.amini/models/wake/ — download models there, not library cache
+        openwakeword.utils.download_models(target_directory=spec.path or None)
         self._model = openwakeword.Model(wakeword=spec.name)
 
     def detect(self, audio_chunk: np.ndarray) -> bool:

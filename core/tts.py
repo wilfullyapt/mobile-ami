@@ -10,7 +10,7 @@ class TTS:
     """
 
     def __init__(self, spec: ModelSpec):
-        self._model_path = spec.path or "/opt/voice-assistant/piper-voices/en_US-lessac-medium.onnx"
+        self._model_path = spec.path  # resolved to ~/.amini/models/tts/<file> by AmiPaths
 
     def speak(self, text: str):
         subprocess.run(

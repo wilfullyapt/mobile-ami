@@ -13,7 +13,12 @@ class STT:
     def __init__(self, spec: ModelSpec):
         device = "cpu" if spec.backend == Backend.CPU else "cuda"
         compute = spec.quant.value if spec.quant != QuantType.NONE else "float32"
-        self._model = WhisperModel(spec.version, device=device, compute_type=compute)
+        self._model = WhisperModel(
+            spec.version,
+            device=device,
+            compute_type=compute,
+            download_root=spec.path or None,  # cache to ~/.amini/models/stt when set
+        )
 
     def transcribe(self, audio: np.ndarray, beam_size: int = 5) -> str:
         segments, _ = self._model.transcribe(audio, beam_size=beam_size)

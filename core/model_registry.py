@@ -1,6 +1,11 @@
+import dataclasses
+import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from core.ami_paths import AmiPaths
 
 
 class Backend(str, Enum):
@@ -37,9 +42,13 @@ class ModelRegistry:
     """
     Pure data layer. Reads model definitions from config and exposes typed ModelSpec objects.
     No loading or I/O beyond config parsing.
+
+    When an AmiPaths instance is provided, model paths are resolved relative to
+    ~/.amini/models/<role>/ so all model data lives in the user's home directory.
+    Without paths (or for absolute/~ paths in config), behaviour is unchanged.
     """
 
-    def __init__(self, models_config: dict):
+    def __init__(self, models_config: dict, paths: "Optional[AmiPaths]" = None):
         self._specs: dict[ModelRole, ModelSpec] = {}
         for role_str, cfg in models_config.items():
             role = ModelRole(role_str)
@@ -52,6 +61,13 @@ class ModelRegistry:
                 version=str(cfg.get("version", cfg["name"])),
                 eager=cfg.get("eager", False),
             )
+            if paths is not None:
+                spec = dataclasses.replace(
+                    spec,
+                    path=paths.resolve_model_path(role_str, spec.path),
+                )
+            elif spec.path:
+                spec = dataclasses.replace(spec, path=os.path.expanduser(spec.path))
             self._specs[role] = spec
 
     def get(self, role: ModelRole) -> ModelSpec:

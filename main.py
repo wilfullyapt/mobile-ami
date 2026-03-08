@@ -12,6 +12,7 @@ from hardware.leds import LEDs
 from hardware.network_manager import NetworkManager
 from hardware.power import get_battery
 
+from core.ami_paths import AmiPaths
 from core.model_registry import ModelRegistry, ModelRole
 from core.model_orchestrator import ModelOrchestrator
 from core.agent_manager import AgentManager
@@ -26,12 +27,16 @@ logger = logging.getLogger(__name__)
 
 
 class VoiceAssistant:
-    def __init__(self):
+    def __init__(self, paths: AmiPaths = None):
         with open("config.yaml") as f:
             self.config = yaml.safe_load(f)
 
+        # ── User data directory (~/.amini/) ────────────────────────────
+        self.paths = paths or AmiPaths()
+        self.paths.ensure_dirs()
+
         # ── Model layer ────────────────────────────────────────────────
-        registry = ModelRegistry(self.config["models"])
+        registry = ModelRegistry(self.config["models"], self.paths)
         self.orchestrator = ModelOrchestrator(registry)
         self.orchestrator.preload_eager()   # loads VAD + wake detector at startup
 
@@ -39,11 +44,14 @@ class VoiceAssistant:
         self.tool_registry = ToolRegistry()
         self.tool_registry.register(TimerTool(on_speak=self._tts_speak))
 
-        # ── Agent layer ────────────────────────────────────────────────
+        # ── Agent layer — built-ins + any plugins in ~/.amini/agents/ ──
+        installed = self.paths.list_agents()
+        all_slugs = ["qa", "block_timer"] + [s for s in installed if s not in ("qa", "block_timer")]
         self.agent_manager = AgentManager(
-            slugs=["qa", "block_timer"],
+            slugs=all_slugs,
             orchestrator=self.orchestrator,
             tool_registry=self.tool_registry,
+            paths=self.paths,
         )
 
         # ── Hardware layer ─────────────────────────────────────────────

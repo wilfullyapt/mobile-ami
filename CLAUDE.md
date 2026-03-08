@@ -2,55 +2,113 @@
 
 ## Project Goal
 
-**mobile-ami** is a handheld, fully offline voice AI assistant running on a Raspberry Pi with a Hailo-10H AI accelerator HAT. The device runs 5 AI models locally (STT, TTS, LLM, wake word, VAD) and supports multiple specialized agents that the user can cycle through via a physical button.
+**mobile-ami** is a handheld, fully offline voice AI assistant running on a Raspberry Pi with a Hailo-10H AI accelerator HAT. The device runs 5 AI models locally (STT, TTS, LLM, wake word, VAD) and supports multiple specialized agents — built-in and 3rd-party plugins installed from GitHub — that the user can cycle through via a physical button.
 
 ---
 
-## Architecture (as of current branch: `claude/voice-ai-orchestration-IQSl9`)
+## Architecture (current branch: `claude/review-local-inference-setup-q17Oy`)
 
 ### Layer overview (bottom-up)
 
 ```
+~/.amini/  (user data: models + agent plugins — separate from project source)
+    ↓
 Hardware (audio, LEDs, buttons, display, power, network)
     ↓
-Model Layer (registry → orchestrator → model wrappers)
+Model Layer (AmiPaths → registry → orchestrator → model wrappers)
     ↓
 Tool Layer (BaseTool, ToolRegistry, TimerTool)
     ↓
-Agent Layer (BaseAgent → QAAgent / BlockTimerAgent)
+Agent Layer (BaseAgent → QAAgent / BlockTimerAgent / plugin agents)
     ↓
 Pipeline (VoicePipeline: listen → transcribe → respond → speak)
     ↓
-main.py (VoiceAssistant entry point)
+cli.py / main.py (VoiceAssistant entry point)
 ```
 
 ### Key files and their roles
 
 | File | Purpose |
 |---|---|
+| `cli.py` | `amini` CLI — `run`, `install`, `list`, `remove`, `update`, `models`, `test` |
 | `main.py` | `VoiceAssistant` class — wires all layers, runs wake loop on main thread |
 | `config.yaml` | All model config (name, backend, quant, path, version, eager) |
-| `core/model_registry.py` | `ModelSpec` dataclass + `ModelRegistry` (pure data, no loading). Enums: `ModelRole`, `Backend`, `QuantType` |
+| `core/ami_paths.py` | `AmiPaths` — file-ops object for `~/.amini/`; path resolution for models and agents |
+| `core/addon_installer.py` | `AddonInstaller` — GitHub clone → validate → pre-install test → install → post-install test |
+| `core/model_registry.py` | `ModelSpec` dataclass + `ModelRegistry(config, paths=None)`. Enums: `ModelRole`, `Backend`, `QuantType` |
 | `core/model_orchestrator.py` | `ModelOrchestrator` — lazy loading, Hailo slot enforcement, hot-swap via `swap()`, `preload_eager()` |
 | `core/pipeline.py` | `VoicePipeline` with 4 stages + `PipelineContext` dataclass |
-| `core/sst.py` | faster-whisper STT wrapper (note: filename is `sst.py`, not `stt.py`) |
-| `core/tts.py` | Piper TTS wrapper |
-| `core/llm.py` | Ollama LLM wrapper — `query()`, `chat()`, `chat_with_tools()` |
+| `core/sst.py` | faster-whisper STT wrapper — `download_root=spec.path` → `~/.amini/models/stt/` |
+| `core/tts.py` | Piper TTS wrapper — model path from spec (no hardcoded fallback) |
+| `core/llm.py` | Ollama LLM wrapper — sets `OLLAMA_MODELS=spec.path` → `~/.amini/models/llm/` |
 | `core/vad.py` | WebRTC VAD wrapper |
-| `core/wake_detector.py` | OpenWakeWord wrapper |
-| `core/agent_manager.py` | Manages named agents, tracks active agent, supports `cycle()` |
+| `core/wake_detector.py` | OpenWakeWord wrapper — `target_directory=spec.path` → `~/.amini/models/wake/` |
+| `core/agent_manager.py` | `AgentManager(slugs, orchestrator, tool_registry, paths=None)` — loads built-ins + `~/.amini/agents/` plugins |
 | `agents/base_agent.py` | Abstract `BaseAgent(orchestrator, tool_registry)` — `process()` + `get_tools()` |
 | `agents/qa_agent.py` | General Q&A with agentic tool loop (max 5 rounds) |
 | `agents/block_timer_agent.py` | Focus timer — LLM parses natural language, calls `set_timer` tool |
 | `agents/tools/base_tool.py` | `BaseTool` ABC + `ToolParam` dataclass + `to_llm_schema()` (Ollama format) |
 | `agents/tools/tool_registry.py` | `ToolRegistry` — register, get, execute, all_schemas |
 | `agents/tools/timer_tool.py` | `TimerTool` — starts background thread timer, speaks start/complete via injected callback |
-| `tests/` | 85 pytest unit tests covering all above components |
+| `tests/` | 115+ pytest unit tests covering all components |
+
+---
+
+## User Data Directory: `~/.amini/`
+
+All runtime data lives here — separate from the project source tree at `~/mobile-ami/`.
+
+```
+~/.amini/
+├── models/
+│   ├── stt/      faster-whisper download_root
+│   ├── tts/      Piper .onnx + .json voice files
+│   ├── wake/     OpenWakeWord downloaded models
+│   ├── llm/      Ollama blobs (OLLAMA_MODELS env points here)
+│   └── hailo/    future .hef files for Hailo-10H
+└── agents/
+    └── <name>/   3rd-party plugin agents (manifest.json + agent.py)
+```
+
+---
+
+## 3rd-Party Agent Plugin Contract
+
+Agents installed from GitHub into `~/.amini/agents/<name>/` must contain:
+
+| File | Required | Purpose |
+|---|---|---|
+| `manifest.json` | yes | `name`, `version`, `entry_class` fields |
+| `agent.py` | yes | class extending `BaseAgent` with `process()` and `get_tools()` |
+| `requirements.txt` | no | pip deps installed on install |
+| `tests/test_unit*.py` | recommended | run pre-install (mocked) |
+| `tests/test_integration*.py` | recommended | run post-install (may use real orchestrator) |
+
+Install flow: `amini install user/repo` → clone → validate → pre-install unit tests → copy → pip install → post-install import + integration tests.
+
+---
+
+## CLI Usage
+
+```
+amini run                        # start voice assistant
+amini install user/repo          # install 3rd-party agent from GitHub
+amini list                       # list built-in + installed agents
+amini remove <name>              # uninstall agent
+amini update <name> user/repo    # update installed agent
+amini models pull                # download/cache all configured models
+amini models list                # show model paths and backends
+amini test                       # run full project test suite
+amini test <agent>               # run specific agent's tests
+```
 
 ---
 
 ## Design decisions to remember
 
+- **`AmiPaths` is the single source of truth for `~/.amini/`** — pass it to `ModelRegistry` and `AgentManager`; never hardcode `~/.amini/` paths elsewhere.
+- **`ModelRegistry(config, paths=None)`** — when `paths` is provided, `spec.path` is auto-resolved: `null` → role model dir, bare filename → role model dir / filename, absolute → unchanged. Backward compatible: `paths=None` preserves original behaviour.
+- **`AgentManager` loads built-ins then plugins** — built-ins (`qa`, `block_timer`) always available; `~/.amini/agents/<slug>/` plugins loaded dynamically via importlib.
 - **`ModelRole` is the primary key** — `orchestrator.get(ModelRole.STT)` everywhere, never string lookups after registry parse.
 - **`eager: true` in config** — VAD and WAKE load at startup; others load lazily on first use.
 - **Hailo-10H is a single exclusive resource** — `ModelOrchestrator._hailo_slot_taken` flag prevents two Hailo models from loading simultaneously. `swap()` releases the slot.
@@ -58,30 +116,15 @@ main.py (VoiceAssistant entry point)
 - **Tool-calling uses Ollama's native format** — `to_llm_schema()` produces OpenAI-compatible dicts; `chat_with_tools()` returns `(text, parsed_calls)`.
 - **`BlockTimerAgent` gets TTS from orchestrator in `get_tools()`** — so `TimerTool.on_speak` always has a live TTS instance even after a hot-swap.
 - **Tests mock all hardware/library deps** — tests run without any Raspberry Pi hardware, Ollama, Whisper, etc. installed.
-
----
-
-## What was built in this session
-
-The voice AI orchestration overhaul added:
-1. `core/model_registry.py` — typed model manifests replacing raw config dicts
-2. `core/model_orchestrator.py` — central lifecycle manager with Hailo enforcement
-3. `core/pipeline.py` — explicit 4-stage pipeline replacing ad-hoc flow in main.py
-4. `agents/tools/` — tool system (BaseTool, ToolRegistry, TimerTool)
-5. `agents/base_agent.py` — abstract base with `get_tools()` hook
-6. `agents/qa_agent.py` — agentic tool-calling loop
-7. `agents/block_timer_agent.py` — LLM-driven timer via tools
-8. `tests/` — 85 unit tests (added in follow-up commit)
-9. `requirements.txt` — added `pytest`
-10. `.gitignore` — added `__pycache__` / `.pyc` exclusions
+- **`amini.service` sets `OLLAMA_MODELS`** — the systemd unit injects `OLLAMA_MODELS=/home/pi/.amini/models/llm` so Ollama uses the user home dir.
 
 ---
 
 ## Hailo integration status
 
 Hailo-10H is **wired but not yet active**. The `Backend.HAILO` enum and `_hailo_slot_taken` enforcement exist. To activate:
-- Set `backend: hailo` and `path: /path/to/model.hef` for a role in `config.yaml`
-- Add a `HailoSTT` (or similar) wrapper class
+- Set `backend: hailo` and `path: hailo/whisper_tiny.hef` (filename → `~/.amini/models/hailo/`) in `config.yaml`
+- Add a `HailoSTT` (or similar) wrapper class in `core/hailo_stt.py`
 - Add a branch in `model_orchestrator._build_instance()` for `spec.backend == Backend.HAILO`
 
 ---
@@ -93,3 +136,11 @@ python -m pytest tests/ -q
 ```
 
 No hardware required — all external deps are mocked.
+
+### Testing a specific installed agent
+
+```bash
+amini test <agent-name>
+# or directly:
+python -m pytest ~/.amini/agents/<name>/tests/ -q
+```

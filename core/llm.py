@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Optional
 
 import ollama
@@ -15,9 +16,15 @@ class LLM:
     Supports plain chat and tool-calling chat. The model name is taken
     from the ModelSpec so it can be changed via the orchestrator without
     modifying code.
+
+    When spec.path is set (resolved to ~/.amini/models/llm/ by AmiPaths),
+    OLLAMA_MODELS is pointed there so Ollama stores its blobs in the user's
+    home directory rather than the system default.
     """
 
     def __init__(self, spec: ModelSpec):
+        if spec.path:
+            os.environ.setdefault("OLLAMA_MODELS", spec.path)
         self._model = spec.name
 
     def query(self, prompt: str) -> str:
