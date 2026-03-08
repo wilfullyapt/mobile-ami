@@ -16,6 +16,7 @@ from core.ami_paths import AmiPaths
 from core.model_registry import ModelRegistry, ModelRole
 from core.model_orchestrator import ModelOrchestrator
 from core.agent_manager import AgentManager
+from core.device_server import DeviceServer
 from core.pipeline import VoicePipeline
 from core.updater import AutoUpdater
 
@@ -34,6 +35,11 @@ class VoiceAssistant:
         # ── User data directory (~/.amini/) ────────────────────────────
         self.paths = paths or AmiPaths()
         self.paths.ensure_dirs()
+
+        # ── Persistent settings ────────────────────────────────────────
+        self._settings = self.paths.load_settings()
+        if "hotword_trigger" not in self._settings:
+            self._settings["hotword_trigger"] = True
 
         # ── Model layer ────────────────────────────────────────────────
         registry = ModelRegistry(self.config["models"], self.paths)
@@ -55,11 +61,25 @@ class VoiceAssistant:
         )
 
         # ── Hardware layer ─────────────────────────────────────────────
-        self.display = StatusDisplay()
-        self.network = NetworkManager()
+        dev_cfg = self.config.get("device", {})
+        self.display = StatusDisplay(timeout_sec=dev_cfg.get("display_timeout_sec", 15))
+        self.network = NetworkManager(self.config)
         self.leds = LEDs()
         self.audio = AudioManager()
         self.updater = AutoUpdater(self.network, self.config)
+
+        # ── Device server ───────────────────────────────────────────────
+        srv_cfg = self.config.get("device_server", {})
+        if srv_cfg.get("enabled", True):
+            self.server = DeviceServer(
+                port=srv_cfg.get("port", 5000),
+                voice_assistant=self,
+            )
+            self.network.add_state_change_callback(self._on_network_state_change)
+        else:
+            self.server = None
+
+        # ── Buttons ────────────────────────────────────────────────────
         self.buttons = DeviceButtons(self.config, self.display, self.network, self)
 
         # ── Pipeline ───────────────────────────────────────────────────
@@ -71,12 +91,10 @@ class VoiceAssistant:
             on_speak=self._tts_speak,
         )
 
-        self.current_mode = "hotword"
-
-        # ── Background threads ─────────────────────────────────────────
+        # ── Background status thread ───────────────────────────────────
         threading.Thread(target=self._status_loop, daemon=True).start()
 
-        self.display.update(50, 4.1, "connected", "HomeWiFi", self.agent_manager.current, "Ready")
+        self.display.update(50, 4.1, "offline", "", self.agent_manager.current, "Ready")
         self.leds.set_color("green")
         self.updater.mark_as_healthy()
 
@@ -94,7 +112,12 @@ class VoiceAssistant:
     def _status_loop(self):
         while True:
             bat, volt = get_battery()
-            self.display.update(bat, volt, self.network.state, self.network.ssid, self.agent_manager.current)
+            self.display.update(
+                bat, volt,
+                self.network.state,
+                self.network.ssid,
+                self.agent_manager.current,
+            )
             time.sleep(30)
 
     # ------------------------------------------------------------------
@@ -102,7 +125,7 @@ class VoiceAssistant:
     # ------------------------------------------------------------------
 
     def run(self):
-        if self.current_mode == "hotword":
+        if self._settings.get("hotword_trigger", True):
             self.pipeline.wake_loop(self.audio.get_chunk)
         else:
             while True:
@@ -117,7 +140,7 @@ class VoiceAssistant:
         self.pipeline.run_once()
 
     def action_click_handler(self):
-        if self.current_mode == "manual":
+        if not self._settings.get("hotword_trigger", True):
             self.trigger_listening()
 
     def cycle_agent(self):
@@ -130,6 +153,44 @@ class VoiceAssistant:
         self.orchestrator.shutdown()
         time.sleep(2)
         os.system("sudo systemctl poweroff")
+
+    # ------------------------------------------------------------------
+    # Network state change callback
+    # ------------------------------------------------------------------
+
+    def _on_network_state_change(self, new_state: str):
+        if new_state in ("hotspot", "wifi"):
+            if self.server:
+                self.server.start()
+            ip = self.network.get_device_ip()
+            port = self.config.get("device_server", {}).get("port", 5000)
+            url = f"http://{ip}:{port}"
+            self.display.set_server_url(url)
+        else:  # offline
+            if self.server:
+                self.server.stop()
+            self.display.set_server_url(None)
+
+    # ------------------------------------------------------------------
+    # Device server API surface
+    # ------------------------------------------------------------------
+
+    def get_status(self) -> dict:
+        bat, volt = get_battery()
+        return {
+            "battery_pct": bat,
+            "voltage": volt,
+            "agent": self.agent_manager.current,
+            "agents": self.agent_manager._slugs,
+            "net_state": self.network.state,
+            "ssid": self.network.ssid,
+            "has_internet": self.network.has_internet(),
+            "hotword_trigger": self._settings.get("hotword_trigger", True),
+        }
+
+    def update_setting(self, key: str, value) -> None:
+        self._settings[key] = value
+        self.paths.save_settings(self._settings)
 
 
 if __name__ == "__main__":

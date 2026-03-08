@@ -41,6 +41,16 @@ auto_update:
   check_interval_sec: 1800
   min_battery_pct: 30
   health_check_retries: 3
+  repo_path: null                      # null = auto-detect from project root
+
+device:
+  display_timeout_sec: 15
+  hotspot_ssid: "AminiAI"
+  hotspot_password: "amini123"
+
+device_server:
+  enabled: true
+  port: 5000
 
 button_pins:
   power: 17

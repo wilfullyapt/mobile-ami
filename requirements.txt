@@ -12,4 +12,5 @@ ollama
 sounddevice
 numpy
 apa102
+flask
 pytest

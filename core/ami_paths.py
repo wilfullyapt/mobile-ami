@@ -1,4 +1,6 @@
+import json
 import os
+import tempfile
 from pathlib import Path
 
 
@@ -71,6 +73,36 @@ class AmiPaths:
     def agent_module(self, name: str) -> Path:
         """~/.amini/agents/<name>/agent.py"""
         return self.agent_dir(name) / "agent.py"
+
+    # ------------------------------------------------------------------
+    # Persistent settings
+    # ------------------------------------------------------------------
+
+    @property
+    def settings_path(self) -> Path:
+        """~/.amini/settings.json"""
+        return self._root / "settings.json"
+
+    def load_settings(self) -> dict:
+        """Load settings from ~/.amini/settings.json; return {} if missing or invalid."""
+        if not self.settings_path.exists():
+            return {}
+        try:
+            return json.loads(self.settings_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
+
+    def save_settings(self, data: dict) -> None:
+        """Atomically write settings to ~/.amini/settings.json."""
+        self._root.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=self._root, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=2)
+            os.replace(tmp, self.settings_path)
+        except Exception:
+            os.unlink(tmp)
+            raise
 
     # ------------------------------------------------------------------
     # Path resolution
