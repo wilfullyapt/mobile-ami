@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 _BUILTIN: dict[str, str] = {
     "qa": "agents.qa_agent.QAAgent",
     "block_timer": "agents.block_timer_agent.BlockTimerAgent",
+    "family_scheduler": "agents.family_scheduler_agent.FamilySchedulerAgent",
+    "shopping_list": "agents.shopping_list_agent.ShoppingListAgent",
+    "kids_story": "agents.kids_story_agent.KidsStoryAgent",
+    "morning_briefing": "agents.morning_briefing_agent.MorningBriefingAgent",
+    "family_intercom": "agents.family_intercom_agent.FamilyIntercomAgent",
 }
 
 
@@ -79,7 +84,7 @@ class AgentManager:
         if slug in _BUILTIN:
             dotted, class_name = _BUILTIN[slug].rsplit(".", 1)
             module = importlib.import_module(dotted)
-            return getattr(module, class_name)(orchestrator, tool_registry)
+            return getattr(module, class_name)(orchestrator, tool_registry, self._paths)
 
         # 2. Plugin agents from ~/.amini/agents/<slug>/
         if self._paths is not None:
@@ -94,7 +99,7 @@ class AgentManager:
                 spec.loader.exec_module(module)
                 cls = getattr(module, manifest["entry_class"])
                 logger.info("Loaded plugin agent '%s' from %s", slug, agent_py)
-                return cls(orchestrator, tool_registry)
+                return cls(orchestrator, tool_registry, self._paths)
 
         raise KeyError(
             f"Unknown agent: '{slug}' — not a built-in and not found in ~/.amini/agents/"

@@ -24,6 +24,7 @@ def _make_orchestrator(stt_text="hello world"):
         ModelRole.VAD: mock_vad,
         ModelRole.WAKE: mock_wake,
     }[role]
+    orch.has.return_value = False  # no SPEAKER model by default
 
     return orch, mock_stt, mock_tts, mock_vad, mock_wake
 
@@ -83,7 +84,7 @@ class TestVoicePipelineRunOnce:
         assert ctx.transcript == "hello"
         assert ctx.agent_response == "world"
         stt.transcribe.assert_called_once()
-        agent.process.assert_called_once_with("hello")
+        agent.process.assert_called_once_with("hello", speaker=None)
         tts.speak.assert_called_once_with("world")
 
     def test_leds_set_blue_on_listen(self):

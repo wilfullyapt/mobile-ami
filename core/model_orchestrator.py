@@ -29,6 +29,10 @@ def _build_instance(spec: ModelSpec) -> Any:
         from core.vad import VAD
         return VAD(spec)
 
+    if spec.role == ModelRole.SPEAKER:
+        from core.speaker_encoder import SpeakerEncoder
+        return SpeakerEncoder(spec)
+
     raise ValueError(f"Unknown model role: {spec.role}")
 
 
@@ -52,6 +56,14 @@ class ModelOrchestrator:
         if role not in self._instances:
             self._load(role)
         return self._instances[role]
+
+    def has(self, role: ModelRole) -> bool:
+        """Return True if the registry has a spec for the given role."""
+        try:
+            self._registry.get(role)
+            return True
+        except KeyError:
+            return False
 
     def swap(self, role: ModelRole, new_name: str, new_path: Optional[str] = None):
         """

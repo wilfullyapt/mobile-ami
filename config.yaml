@@ -34,6 +34,13 @@ models:
     path: null
     version: "2"                         # sensitivity level (0-3)
     eager: true
+  speaker:
+    name: resemblyzer-ge2e
+    backend: cpu
+    quant: none
+    path: null                           # -> ~/.amini/models/speaker/ (model weights cache)
+    version: "ge2e"
+    eager: false                         # loaded on first voice interaction
 
 auto_update:
   enabled: true

@@ -58,12 +58,28 @@ class AmiPaths:
         """~/.amini/conversations/<agent>/"""
         return self.conversations_dir / agent
 
+    @property
+    def profiles_dir(self) -> Path:
+        """~/.amini/profiles/ — voice profile metadata and embeddings."""
+        return self._root / "profiles"
+
+    @property
+    def data_dir(self) -> Path:
+        """~/.amini/data/ — shared family data: calendar, shopping list, messages."""
+        return self._root / "data"
+
+    def message_dir(self, name: str) -> Path:
+        """~/.amini/data/messages/<name>/ — per-person voice message inbox."""
+        return self.data_dir / "messages" / name
+
     def ensure_dirs(self) -> None:
         """Create the full directory tree under ~/.amini/ if not already present."""
-        for role in ("stt", "tts", "wake", "llm", "hailo"):
+        for role in ("stt", "tts", "wake", "llm", "hailo", "speaker"):
             (self.models_dir / role).mkdir(parents=True, exist_ok=True)
         self.agents_dir.mkdir(parents=True, exist_ok=True)
         self.conversations_dir.mkdir(parents=True, exist_ok=True)
+        (self.profiles_dir / "embeddings").mkdir(parents=True, exist_ok=True)
+        (self.data_dir / "messages").mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Agent discovery

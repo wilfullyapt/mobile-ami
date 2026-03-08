@@ -13,4 +13,5 @@ sounddevice
 numpy
 apa102
 flask
+resemblyzer
 pytest

@@ -25,6 +25,7 @@ class ModelRole(str, Enum):
     LLM = "llm"
     WAKE = "wake"
     VAD = "vad"
+    SPEAKER = "speaker"
 
 
 @dataclass

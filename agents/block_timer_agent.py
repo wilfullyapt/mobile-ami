@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from agents.base_agent import BaseAgent
 from agents.tools.timer_tool import TimerTool
@@ -20,7 +21,7 @@ class BlockTimerAgent(BaseAgent):
         tts = self._orchestrator.get(ModelRole.TTS)
         return [TimerTool(on_speak=tts.speak)]
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, speaker: Optional[str] = None) -> str:
         llm = self._orchestrator.get(ModelRole.LLM)
         tools = [t.to_llm_schema() for t in self.get_tools()]
         messages = [{"role": "user", "content": text}]

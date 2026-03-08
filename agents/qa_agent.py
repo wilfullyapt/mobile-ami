@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from agents.base_agent import BaseAgent
 from core.model_registry import ModelRole
@@ -15,12 +16,25 @@ class QAAgent(BaseAgent):
     Supports tool calling: the LLM can invoke any tool returned by get_tools().
     The agentic loop continues until the model stops requesting tool calls or
     the round limit is hit.
+
+    When a speaker is identified, a brief system prompt is prepended so the LLM
+    can address the user by name and adjust its tone.
     """
 
-    def process(self, text: str) -> str:
+    def process(self, text: str, speaker: Optional[str] = None) -> str:
         llm = self._orchestrator.get(ModelRole.LLM)
         tools = [t.to_llm_schema() for t in self.get_tools()]
-        messages = [{"role": "user", "content": text}]
+        messages = []
+        if speaker:
+            messages.append({
+                "role": "system",
+                "content": (
+                    f"You are a friendly family AI assistant. "
+                    f"The person speaking is {speaker}. "
+                    "Address them by name when natural."
+                ),
+            })
+        messages.append({"role": "user", "content": text})
 
         for _ in range(_MAX_TOOL_ROUNDS):
             response, tool_calls = llm.chat_with_tools(messages, tools or None)
