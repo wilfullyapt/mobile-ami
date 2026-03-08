@@ -27,14 +27,26 @@ class VoicePipeline:
 
     Models are fetched from the orchestrator on each call so that
     hot-swaps take effect immediately.
+
+    If conv_logger is provided, each completed interaction is persisted
+    to ~/.amini/conversations/<agent>/ via ConversationLogger.log().
     """
 
-    def __init__(self, orchestrator, agent_manager, audio, leds, on_speak: Callable[[str], None]):
+    def __init__(
+        self,
+        orchestrator,
+        agent_manager,
+        audio,
+        leds,
+        on_speak: Callable[[str], None],
+        conv_logger=None,
+    ):
         self._orch = orchestrator
         self._agents = agent_manager
         self._audio = audio
         self._leds = leds
         self._on_speak = on_speak
+        self._conv_logger = conv_logger
 
     # ------------------------------------------------------------------
     # Public interface
@@ -94,6 +106,10 @@ class VoicePipeline:
     def _stage_respond(self, ctx: PipelineContext):
         agent = self._agents.get_current_agent()
         ctx.agent_response = agent.process(ctx.transcript)
+        if self._conv_logger and ctx.transcript and ctx.agent_response:
+            self._conv_logger.log(
+                self._agents.current, ctx.transcript, ctx.agent_response
+            )
 
     def _stage_speak(self, ctx: PipelineContext):
         if ctx.agent_response:

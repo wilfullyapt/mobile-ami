@@ -50,11 +50,20 @@ class AmiPaths:
     # Bootstrap
     # ------------------------------------------------------------------
 
+    @property
+    def conversations_dir(self) -> Path:
+        return self._root / "conversations"
+
+    def conversation_agent_dir(self, agent: str) -> Path:
+        """~/.amini/conversations/<agent>/"""
+        return self.conversations_dir / agent
+
     def ensure_dirs(self) -> None:
         """Create the full directory tree under ~/.amini/ if not already present."""
         for role in ("stt", "tts", "wake", "llm", "hailo"):
             (self.models_dir / role).mkdir(parents=True, exist_ok=True)
         self.agents_dir.mkdir(parents=True, exist_ok=True)
+        self.conversations_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Agent discovery

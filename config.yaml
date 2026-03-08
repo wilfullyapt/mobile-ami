@@ -47,6 +47,7 @@ device:
   display_timeout_sec: 15
   hotspot_ssid: "AminiAI"
   hotspot_password: "amini123"
+  wifi_rollover_timeout_sec: 20    # seconds to wait for WiFi before falling back to hotspot
 
 device_server:
   enabled: true

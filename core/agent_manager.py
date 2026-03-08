@@ -54,8 +54,18 @@ class AgentManager:
     def current(self) -> str:
         return self._slugs[self._index]
 
+    @property
+    def slugs(self) -> list[str]:
+        return list(self._slugs)
+
     def cycle(self) -> None:
         self._index = (self._index + 1) % len(self._slugs)
+
+    def set_agent(self, slug: str) -> None:
+        """Switch the active agent by slug. Raises ValueError if unknown."""
+        if slug not in self._slugs:
+            raise ValueError(f"Unknown agent: {slug!r}")
+        self._index = self._slugs.index(slug)
 
     def get_current_agent(self):
         return self._instances[self.current]

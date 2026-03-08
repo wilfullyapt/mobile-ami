@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Amini Device</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <h1>&#9670; Amini Device</h1>
+
+  <!-- Tab navigation -->
+  <nav class="tabs" role="tablist">
+    <button class="tab-btn active" onclick="showTab('dashboard')" id="tab-dashboard">Dashboard</button>
+    <button class="tab-btn" onclick="showTab('wifi')"        id="tab-wifi">WiFi</button>
+    <button class="tab-btn" onclick="showTab('plugins')"     id="tab-plugins">Plugins</button>
+    <button class="tab-btn" onclick="showTab('tests')"       id="tab-tests">Tests</button>
+    <button class="tab-btn" onclick="showTab('history')"     id="tab-history">History</button>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: DASHBOARD
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="panel-dashboard">
+
+    <!-- Status card -->
+    <div class="card">
+      <h2>Device Status</h2>
+      <div class="status-row"><span class="label">Battery</span><span class="value" id="s-battery">--</span></div>
+      <div class="status-row"><span class="label">Network</span><span class="value" id="s-network">--</span></div>
+      <div class="status-row"><span class="label">Internet</span><span class="value" id="s-internet">--</span></div>
+      <div class="status-row"><span class="label">IP</span><span class="value" id="s-ip">--</span></div>
+      <div class="status-row"><span class="label">SSID</span><span class="value" id="s-ssid">--</span></div>
+      <div class="status-row"><span class="label">Active Agent</span><span class="value accent" id="s-agent">--</span></div>
+    </div>
+
+    <!-- Agent selector -->
+    <div class="card">
+      <h2>Active Agent</h2>
+      <div id="agent-list"></div>
+      <button class="btn btn-primary btn-full mt-2" onclick="cycleAgent()">Cycle Agent</button>
+    </div>
+
+    <!-- Settings -->
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="toggle-row">
+        <span>Hotword Trigger</span>
+        <input type="checkbox" id="hotword-toggle" onchange="updateHotword(this.checked)">
+      </div>
+    </div>
+
+  </div><!-- /panel-dashboard -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: WIFI
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-wifi">
+
+    <!-- Current state -->
+    <div class="card">
+      <h2>Network State</h2>
+      <div class="status-row"><span class="label">Mode</span><span class="value" id="w-state">--</span></div>
+      <div class="status-row"><span class="label">SSID</span><span class="value" id="w-ssid">--</span></div>
+      <div class="status-row"><span class="label">IP</span><span class="value" id="w-ip">--</span></div>
+      <div class="status-row"><span class="label">Internet</span><span class="value" id="w-internet">--</span></div>
+      <div class="mt-2 flex gap-2">
+        <button class="btn btn-muted" style="flex:1" onclick="cycleNetwork()">Cycle Mode</button>
+        <button class="btn btn-primary" style="flex:1" onclick="switchToHotspot()">Enable Hotspot</button>
+      </div>
+    </div>
+
+    <!-- WiFi setup portal -->
+    <div class="card" id="wifi-setup-card">
+      <h2>Connect to WiFi</h2>
+      <p class="text-sm text-muted mb-2">
+        Select a network below or enter an SSID manually, then provide the password and connect.
+        The device will switch to WiFi mode; if no connection forms within 20 seconds it will
+        return to hotspot automatically.
+      </p>
+
+      <div class="field">
+        <label>Available Networks</label>
+        <div id="wifi-network-list"><span class="text-muted text-sm">Tap "Scan" to discover networks.</span></div>
+        <button class="btn btn-muted btn-sm mt-2" onclick="scanNetworks()" id="scan-btn">
+          Scan for Networks
+        </button>
+      </div>
+
+      <div class="field">
+        <label for="wifi-ssid-input">SSID</label>
+        <input type="text" id="wifi-ssid-input" placeholder="Network name" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="wifi-pass-input">Password</label>
+        <input type="password" id="wifi-pass-input" placeholder="Leave blank for open networks" autocomplete="off">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="connectWifi()" id="connect-btn">
+        Connect
+      </button>
+      <div id="wifi-connect-result" class="mt-2 text-sm"></div>
+    </div>
+
+    <!-- Saved networks -->
+    <div class="card">
+      <h2>Saved Networks</h2>
+      <div id="saved-networks-list"><span class="text-muted text-sm">Loading…</span></div>
+      <button class="btn btn-muted btn-sm mt-2" onclick="loadSavedNetworks()">Refresh</button>
+    </div>
+
+  </div><!-- /panel-wifi -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: PLUGINS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-plugins">
+
+    <!-- Install form -->
+    <div class="card">
+      <h2>Install Plugin</h2>
+      <div class="field">
+        <label for="plugin-source">GitHub Repository</label>
+        <input type="text" id="plugin-source" placeholder="user/repo or https://github.com/…" autocomplete="off">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="installPlugin()" id="install-btn">
+        Install
+      </button>
+      <div id="install-job-area" class="hidden mt-2">
+        <div class="flex items-center gap-2">
+          <span class="spinner" id="install-spinner"></span>
+          <span id="install-status" class="text-sm">Installing…</span>
+        </div>
+        <div class="job-output hidden" id="install-output"></div>
+      </div>
+    </div>
+
+    <!-- Installed plugins list -->
+    <div class="card">
+      <h2>Installed Plugins</h2>
+      <div id="plugin-list"><span class="text-muted text-sm">Loading…</span></div>
+      <button class="btn btn-muted btn-sm mt-2" onclick="loadPlugins()">Refresh</button>
+    </div>
+
+    <!-- Per-plugin test output -->
+    <div id="plugin-test-area" class="card hidden">
+      <div class="flex justify-between items-center mb-2">
+        <h2 id="plugin-test-title">Test Results</h2>
+        <button class="btn btn-muted btn-sm" onclick="document.getElementById('plugin-test-area').classList.add('hidden')">✕</button>
+      </div>
+      <div class="flex items-center gap-2" id="plugin-test-running">
+        <span class="spinner"></span><span class="text-sm">Running tests…</span>
+      </div>
+      <div class="job-output hidden" id="plugin-test-output"></div>
+    </div>
+
+  </div><!-- /panel-plugins -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: TESTS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-tests">
+
+    <div class="card">
+      <h2>Test Suite Runner</h2>
+      <p class="text-sm text-muted mb-2">
+        Run the full project test suite (no hardware required — all external deps are mocked)
+        or target tests for a specific installed agent.
+      </p>
+
+      <div class="field">
+        <label for="test-agent-select">Scope</label>
+        <select id="test-agent-select">
+          <option value="">Full project test suite</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="runTests()" id="run-tests-btn">
+        Run Tests
+      </button>
+    </div>
+
+    <div id="test-job-area" class="card hidden">
+      <div class="flex justify-between items-center mb-2">
+        <h2>Test Output <span id="test-job-badge" class="badge badge-running">running</span></h2>
+        <button class="btn btn-muted btn-sm" onclick="document.getElementById('test-job-area').classList.add('hidden')">✕</button>
+      </div>
+      <div class="flex items-center gap-2" id="test-running-indicator">
+        <span class="spinner"></span><span class="text-sm" id="test-running-label">Running…</span>
+      </div>
+      <div class="job-output hidden" id="test-output"></div>
+    </div>
+
+    <!-- Previous test runs -->
+    <div class="card">
+      <h2>Recent Test Runs</h2>
+      <div id="test-history-list"><span class="text-muted text-sm">No runs yet.</span></div>
+      <button class="btn btn-muted btn-sm mt-2" onclick="loadTestHistory()">Refresh</button>
+    </div>
+
+  </div><!-- /panel-tests -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: HISTORY
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-history">
+
+    <div class="card">
+      <h2>Conversation History</h2>
+
+      <div class="filter-chips" id="agent-chips">
+        <button class="chip active" onclick="filterHistory(null, this)">All</button>
+      </div>
+
+      <div id="history-list"><span class="text-muted text-sm">No conversations yet.</span></div>
+      <button class="btn btn-muted btn-sm mt-2" onclick="loadHistory()">Refresh</button>
+    </div>
+
+  </div><!-- /panel-history -->
+
+</div><!-- /page-wrap -->
+
+<script>
+// ────────────────────────────────────────────────────────────
+// Tab routing
+// ────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  // Lazy-load tab content on first visit
+  if (name === 'wifi')     { loadNetworkStatus(); loadSavedNetworks(); }
+  if (name === 'plugins')  { loadPlugins(); }
+  if (name === 'tests')    { loadTestAgentOptions(); loadTestHistory(); }
+  if (name === 'history')  { loadHistory(); loadHistoryAgentChips(); }
+}
+
+// ────────────────────────────────────────────────────────────
+// Polling helpers
+// ────────────────────────────────────────────────────────────
+function pollJob(jobId, onDone, statusEl, outputEl, spinnerEl, badgeEl) {
+  const interval = setInterval(async () => {
+    const r = await fetch('/api/plugins/jobs/' + jobId).catch(() => null)
+              || await fetch('/api/test/jobs/' + jobId).catch(() => null);
+    if (!r || !r.ok) return;
+    const job = await r.json();
+    if (statusEl) statusEl.textContent = job.status === 'running' ? 'Running…' : (job.status === 'done' ? 'Done' : 'Failed');
+    if (badgeEl) { badgeEl.className = 'badge badge-' + job.status; badgeEl.textContent = job.status; }
+    if (job.status !== 'running') {
+      clearInterval(interval);
+      if (spinnerEl) spinnerEl.classList.add('hidden');
+      if (outputEl) {
+        outputEl.classList.remove('hidden');
+        outputEl.textContent = job.output || job.error || '(no output)';
+      }
+      if (onDone) onDone(job);
+    }
+  }, 1500);
+}
+
+// ────────────────────────────────────────────────────────────
+// Dashboard
+// ────────────────────────────────────────────────────────────
+async function fetchStatus() {
+  const [sr, nr] = await Promise.all([fetch('/api/status'), fetch('/api/network')]).catch(() => [null, null]);
+  if (!sr || !sr.ok) return;
+  const s = await sr.json();
+  const n = await nr.json();
+
+  document.getElementById('s-battery').textContent  = s.battery_pct + '% · ' + s.voltage + 'V';
+  document.getElementById('s-network').textContent  = s.net_state;
+  document.getElementById('s-internet').textContent = s.has_internet ? '✓ Online' : '✗ Offline';
+  document.getElementById('s-internet').className   = 'value ' + (s.has_internet ? 'ok' : 'warn');
+  document.getElementById('s-ip').textContent       = n.ip || '--';
+  document.getElementById('s-ssid').textContent     = s.ssid || '--';
+  document.getElementById('s-agent').textContent    = s.agent;
+  document.getElementById('hotword-toggle').checked = s.hotword_trigger;
+
+  const list = document.getElementById('agent-list');
+  list.innerHTML = '';
+  (s.agents || []).forEach(slug => {
+    const btn = document.createElement('button');
+    btn.textContent = slug;
+    btn.className = 'agent-pill' + (slug === s.agent ? ' active' : '');
+    btn.onclick = () => setAgent(slug);
+    list.appendChild(btn);
+  });
+}
+
+async function cycleAgent() {
+  await fetch('/api/agent/cycle', {method: 'POST'});
+  fetchStatus();
+}
+
+async function setAgent(slug) {
+  await fetch('/api/agent/set/' + slug, {method: 'POST'});
+  fetchStatus();
+}
+
+async function updateHotword(val) {
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({hotword_trigger: val})
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// WiFi tab
+// ────────────────────────────────────────────────────────────
+async function loadNetworkStatus() {
+  const r = await fetch('/api/network').catch(() => null);
+  if (!r || !r.ok) return;
+  const n = await r.json();
+  document.getElementById('w-state').textContent    = n.state;
+  document.getElementById('w-ssid').textContent     = n.ssid || '--';
+  document.getElementById('w-ip').textContent       = n.ip || '--';
+  document.getElementById('w-internet').textContent = n.has_internet ? '✓ Online' : '✗ Offline';
+  document.getElementById('w-internet').className   = 'value ' + (n.has_internet ? 'ok' : 'warn');
+}
+
+async function cycleNetwork() {
+  await fetch('/api/network/cycle', {method: 'POST'});
+  loadNetworkStatus();
+}
+
+async function switchToHotspot() {
+  await fetch('/api/network/cycle', {method: 'POST'});  // simplified — use direct endpoint if added
+  loadNetworkStatus();
+}
+
+async function scanNetworks() {
+  const btn = document.getElementById('scan-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Scanning…';
+  const listEl = document.getElementById('wifi-network-list');
+  listEl.innerHTML = '<span class="text-muted text-sm">Scanning…</span>';
+
+  try {
+    const r = await fetch('/api/wifi/networks');
+    if (!r.ok) throw new Error('Scan failed');
+    const data = await r.json();
+    const nets = data.networks || [];
+
+    listEl.innerHTML = '';
+    if (!nets.length) {
+      listEl.innerHTML = '<span class="text-muted text-sm">No networks found.</span>';
+      return;
+    }
+    nets.forEach(net => {
+      const el = document.createElement('div');
+      el.className = 'wifi-network';
+      el.innerHTML =
+        `<span class="wifi-ssid">${esc(net.ssid)}</span>` +
+        `<span class="wifi-signal">${net.signal}% ${net.security ? '🔒' : ''}</span>`;
+      el.onclick = () => {
+        document.querySelectorAll('.wifi-network').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        document.getElementById('wifi-ssid-input').value = net.ssid;
+        document.getElementById('wifi-pass-input').focus();
+      };
+      listEl.appendChild(el);
+    });
+  } catch(e) {
+    listEl.innerHTML = '<span class="value err">Scan failed.</span>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Scan for Networks';
+  }
+}
+
+async function connectWifi() {
+  const ssid = document.getElementById('wifi-ssid-input').value.trim();
+  const pass  = document.getElementById('wifi-pass-input').value;
+  const result = document.getElementById('wifi-connect-result');
+  if (!ssid) { result.innerHTML = '<span class="value err">Please enter an SSID.</span>'; return; }
+
+  const btn = document.getElementById('connect-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Connecting…';
+  result.innerHTML = '';
+
+  try {
+    const r = await fetch('/api/wifi/connect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ssid, password: pass})
+    });
+    const data = await r.json();
+    if (data.ok) {
+      result.innerHTML = `<span class="value ok">Connected to ${esc(ssid)}. Device is switching to WiFi mode…</span>`;
+      setTimeout(loadNetworkStatus, 3000);
+    } else {
+      result.innerHTML = `<span class="value err">${esc(data.error || 'Connection failed.')}</span>`;
+    }
+  } catch(e) {
+    result.innerHTML = '<span class="value err">Request failed.</span>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Connect';
+  }
+}
+
+async function loadSavedNetworks() {
+  const el = document.getElementById('saved-networks-list');
+  el.innerHTML = '<span class="text-muted text-sm">Loading…</span>';
+  try {
+    const r = await fetch('/api/wifi/saved');
+    const data = await r.json();
+    const nets = data.networks || [];
+    if (!nets.length) { el.innerHTML = '<span class="text-muted text-sm">No saved networks.</span>'; return; }
+    el.innerHTML = '';
+    nets.forEach(ssid => {
+      const row = document.createElement('div');
+      row.className = 'status-row';
+      row.innerHTML = `<span class="text-sm">${esc(ssid)}</span>
+        <button class="btn btn-danger btn-sm" onclick="forgetNetwork(${JSON.stringify(ssid)})">Forget</button>`;
+      el.appendChild(row);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load.</span>';
+  }
+}
+
+async function forgetNetwork(ssid) {
+  await fetch('/api/wifi/saved/' + encodeURIComponent(ssid), {method: 'DELETE'});
+  loadSavedNetworks();
+}
+
+// ────────────────────────────────────────────────────────────
+// Plugins tab
+// ────────────────────────────────────────────────────────────
+async function loadPlugins() {
+  const el = document.getElementById('plugin-list');
+  el.innerHTML = '<span class="text-muted text-sm">Loading…</span>';
+  try {
+    const r = await fetch('/api/plugins');
+    const data = await r.json();
+    const plugins = data.plugins || [];
+    if (!plugins.length) { el.innerHTML = '<span class="text-muted text-sm">No plugins installed.</span>'; return; }
+    el.innerHTML = '';
+    plugins.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'plugin-card';
+      card.innerHTML = `
+        <div class="plugin-header">
+          <span class="plugin-name">${esc(p.name)}</span>
+          <span class="plugin-ver">v${esc(p.version)}</span>
+        </div>
+        ${p.description ? `<div class="plugin-desc">${esc(p.description)}</div>` : ''}
+        <div class="plugin-actions">
+          <button class="btn btn-success btn-sm" onclick="testPlugin(${JSON.stringify(p.name)})">Run Tests</button>
+          <button class="btn btn-danger btn-sm" onclick="removePlugin(${JSON.stringify(p.name)})">Remove</button>
+        </div>`;
+      el.appendChild(card);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load plugins.</span>';
+  }
+}
+
+async function installPlugin() {
+  const source = document.getElementById('plugin-source').value.trim();
+  if (!source) return;
+  const btn = document.getElementById('install-btn');
+  const area = document.getElementById('install-job-area');
+  const statusEl = document.getElementById('install-status');
+  const outputEl = document.getElementById('install-output');
+  const spinnerEl = document.getElementById('install-spinner');
+
+  btn.disabled = true;
+  area.classList.remove('hidden');
+  outputEl.classList.add('hidden');
+  outputEl.textContent = '';
+  statusEl.textContent = 'Installing…';
+
+  try {
+    const r = await fetch('/api/plugins/install', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({source})
+    });
+    const data = await r.json();
+    if (data.error) { statusEl.textContent = 'Error: ' + data.error; btn.disabled = false; return; }
+
+    pollJob(data.job_id, (job) => {
+      btn.disabled = false;
+      if (job.status === 'done') loadPlugins();
+    }, statusEl, outputEl, spinnerEl, null);
+  } catch(e) {
+    statusEl.textContent = 'Request failed.';
+    btn.disabled = false;
+  }
+}
+
+async function testPlugin(name) {
+  const area = document.getElementById('plugin-test-area');
+  const titleEl = document.getElementById('plugin-test-title');
+  const runningEl = document.getElementById('plugin-test-running');
+  const outputEl = document.getElementById('plugin-test-output');
+
+  area.classList.remove('hidden');
+  titleEl.textContent = 'Tests: ' + name;
+  runningEl.classList.remove('hidden');
+  outputEl.classList.add('hidden');
+  outputEl.textContent = '';
+
+  const r = await fetch('/api/plugins/' + encodeURIComponent(name) + '/test', {method: 'POST'});
+  const data = await r.json();
+
+  pollJob(data.job_id, () => { runningEl.classList.add('hidden'); }, null, outputEl, null, null);
+}
+
+async function removePlugin(name) {
+  if (!confirm('Remove plugin "' + name + '"?')) return;
+  const r = await fetch('/api/plugins/' + encodeURIComponent(name), {method: 'DELETE'});
+  if (r.ok) loadPlugins();
+}
+
+// ────────────────────────────────────────────────────────────
+// Tests tab
+// ────────────────────────────────────────────────────────────
+async function loadTestAgentOptions() {
+  const sel = document.getElementById('test-agent-select');
+  // Keep the first option, rebuild the rest
+  while (sel.options.length > 1) sel.remove(1);
+  try {
+    const r = await fetch('/api/agents');
+    const data = await r.json();
+    (data.agents || []).forEach(slug => {
+      const opt = document.createElement('option');
+      opt.value = slug;
+      opt.textContent = 'Agent: ' + slug;
+      sel.appendChild(opt);
+    });
+  } catch {}
+}
+
+async function runTests() {
+  const agent = document.getElementById('test-agent-select').value;
+  const btn = document.getElementById('run-tests-btn');
+  const area = document.getElementById('test-job-area');
+  const badgeEl = document.getElementById('test-job-badge');
+  const runningEl = document.getElementById('test-running-indicator');
+  const labelEl = document.getElementById('test-running-label');
+  const outputEl = document.getElementById('test-output');
+
+  btn.disabled = true;
+  area.classList.remove('hidden');
+  outputEl.classList.add('hidden');
+  outputEl.textContent = '';
+  badgeEl.className = 'badge badge-running';
+  badgeEl.textContent = 'running';
+  runningEl.classList.remove('hidden');
+  labelEl.textContent = agent ? `Running tests for agent: ${agent}…` : 'Running full test suite…';
+
+  const url = '/api/test/run' + (agent ? '?agent=' + encodeURIComponent(agent) : '');
+  const r = await fetch(url, {method: 'POST'});
+  const data = await r.json();
+
+  pollJob(data.job_id, (job) => {
+    btn.disabled = false;
+    runningEl.classList.add('hidden');
+    loadTestHistory();
+  }, null, outputEl, null, badgeEl);
+}
+
+async function loadTestHistory() {
+  const el = document.getElementById('test-history-list');
+  try {
+    const r = await fetch('/api/test/jobs');
+    const data = await r.json();
+    const jobs = (data.jobs || []).reverse();
+    if (!jobs.length) { el.innerHTML = '<span class="text-muted text-sm">No runs yet.</span>'; return; }
+    el.innerHTML = '';
+    jobs.slice(0, 10).forEach(job => {
+      const row = document.createElement('div');
+      row.className = 'status-row';
+      row.innerHTML =
+        `<span class="text-sm">${esc(job.label)}</span>` +
+        `<span class="badge badge-${job.status}">${job.status}</span>`;
+      row.style.cursor = 'pointer';
+      row.onclick = () => {
+        const area = document.getElementById('test-job-area');
+        const outputEl = document.getElementById('test-output');
+        area.classList.remove('hidden');
+        outputEl.classList.remove('hidden');
+        outputEl.textContent = job.output || job.error || '(no output)';
+        document.getElementById('test-job-badge').className = 'badge badge-' + job.status;
+        document.getElementById('test-job-badge').textContent = job.status;
+        document.getElementById('test-running-indicator').classList.add('hidden');
+      };
+      el.appendChild(row);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load.</span>';
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// History tab
+// ────────────────────────────────────────────────────────────
+let _historyAgent = null;
+
+async function loadHistoryAgentChips() {
+  const chips = document.getElementById('agent-chips');
+  try {
+    const r = await fetch('/api/conversations/agents');
+    const data = await r.json();
+    // Rebuild (keep "All" chip)
+    chips.innerHTML = `<button class="chip${!_historyAgent ? ' active' : ''}" onclick="filterHistory(null, this)">All</button>`;
+    (data.agents || []).forEach(slug => {
+      const btn = document.createElement('button');
+      btn.className = 'chip' + (slug === _historyAgent ? ' active' : '');
+      btn.textContent = slug;
+      btn.onclick = () => filterHistory(slug, btn);
+      chips.appendChild(btn);
+    });
+  } catch {}
+}
+
+function filterHistory(agent, chipEl) {
+  _historyAgent = agent;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  if (chipEl) chipEl.classList.add('active');
+  loadHistory();
+}
+
+async function loadHistory() {
+  const el = document.getElementById('history-list');
+  el.innerHTML = '<span class="text-muted text-sm">Loading…</span>';
+  try {
+    const url = '/api/conversations' + (_historyAgent ? '?agent=' + encodeURIComponent(_historyAgent) : '');
+    const r = await fetch(url);
+    const data = await r.json();
+    const convos = data.conversations || [];
+    if (!convos.length) { el.innerHTML = '<span class="text-muted text-sm">No conversations recorded yet.</span>'; return; }
+    el.innerHTML = '';
+    convos.forEach(c => {
+      const entry = document.createElement('div');
+      entry.className = 'conv-entry';
+      const ts = new Date(c.timestamp).toLocaleString();
+      entry.innerHTML = `
+        <div class="conv-meta">
+          <span>${esc(c.agent)}</span>
+          <span>${ts}</span>
+        </div>
+        <div class="conv-transcript">${esc(c.transcript)}</div>
+        <div class="conv-response">${esc(c.response)}</div>`;
+      el.appendChild(entry);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load history.</span>';
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// Utilities
+// ────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ────────────────────────────────────────────────────────────
+// Init
+// ────────────────────────────────────────────────────────────
+fetchStatus();
+setInterval(fetchStatus, 10000);
+</script>
+</body>
+</html>

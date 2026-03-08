@@ -13,11 +13,14 @@ from hardware.network_manager import NetworkManager
 from hardware.power import get_battery
 
 from core.ami_paths import AmiPaths
+from core.addon_installer import AddonInstaller
+from core.conversation_logger import ConversationLogger
 from core.model_registry import ModelRegistry, ModelRole
 from core.model_orchestrator import ModelOrchestrator
 from core.agent_manager import AgentManager
 from core.device_server import DeviceServer
 from core.pipeline import VoicePipeline
+from core.server.job_manager import JobManager
 from core.updater import AutoUpdater
 
 from agents.tools.tool_registry import ToolRegistry
@@ -68,12 +71,22 @@ class VoiceAssistant:
         self.audio = AudioManager()
         self.updater = AutoUpdater(self.network, self.config)
 
+        # ── Conversation logger ────────────────────────────────────────
+        self.conv_logger = ConversationLogger(self.paths)
+
+        # ── Plugin installer and async job manager ─────────────────────
+        self.installer = AddonInstaller(self.paths)
+        self.job_manager = JobManager()
+
         # ── Device server ───────────────────────────────────────────────
         srv_cfg = self.config.get("device_server", {})
         if srv_cfg.get("enabled", True):
             self.server = DeviceServer(
                 port=srv_cfg.get("port", 5000),
                 voice_assistant=self,
+                addon_installer=self.installer,
+                conv_logger=self.conv_logger,
+                job_manager=self.job_manager,
             )
             self.network.add_state_change_callback(self._on_network_state_change)
         else:
@@ -82,13 +95,14 @@ class VoiceAssistant:
         # ── Buttons ────────────────────────────────────────────────────
         self.buttons = DeviceButtons(self.config, self.display, self.network, self)
 
-        # ── Pipeline ───────────────────────────────────────────────────
+        # ── Pipeline (with conversation logging) ───────────────────────
         self.pipeline = VoicePipeline(
             orchestrator=self.orchestrator,
             agent_manager=self.agent_manager,
             audio=self.audio,
             leds=self.leds,
             on_speak=self._tts_speak,
+            conv_logger=self.conv_logger,
         )
 
         # ── Background status thread ───────────────────────────────────
@@ -181,12 +195,15 @@ class VoiceAssistant:
             "battery_pct": bat,
             "voltage": volt,
             "agent": self.agent_manager.current,
-            "agents": self.agent_manager._slugs,
+            "agents": self.agent_manager.slugs,
             "net_state": self.network.state,
             "ssid": self.network.ssid,
             "has_internet": self.network.has_internet(),
             "hotword_trigger": self._settings.get("hotword_trigger", True),
         }
+
+    def get_settings(self) -> dict:
+        return dict(self._settings)
 
     def update_setting(self, key: str, value) -> None:
         self._settings[key] = value
