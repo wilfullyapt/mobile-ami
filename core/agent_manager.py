@@ -72,6 +72,19 @@ class AgentManager:
             raise ValueError(f"Unknown agent: {slug!r}")
         self._index = self._slugs.index(slug)
 
+    def inject(self, slug: str, agent_instance) -> None:
+        """
+        Register a pre-built agent instance.
+
+        Use this for agents that need special construction (e.g. AllyAgent
+        which requires SoulManager, OwnerManager, and AllyListener injected
+        at runtime). If ``slug`` is not already in the slug list it is appended;
+        if it is already registered, the instance is replaced in-place.
+        """
+        if slug not in self._slugs:
+            self._slugs.append(slug)
+        self._instances[slug] = agent_instance
+
     def get_current_agent(self):
         return self._instances[self.current]
 

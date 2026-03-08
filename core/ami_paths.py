@@ -72,6 +72,30 @@ class AmiPaths:
         """~/.amini/data/messages/<name>/ — per-person voice message inbox."""
         return self.data_dir / "messages" / name
 
+    # ------------------------------------------------------------------
+    # Ally / owner / soul paths
+    # ------------------------------------------------------------------
+
+    @property
+    def soul_path(self) -> Path:
+        """~/.amini/soul.md — the ally agent's identity and purpose file."""
+        return self._root / "soul.md"
+
+    @property
+    def owner_path(self) -> Path:
+        """~/.amini/owner.json — device owner identity and last-seen timestamp."""
+        return self._root / "owner.json"
+
+    @property
+    def memory_dir(self) -> Path:
+        """~/.amini/memory/ — per-day LLM summaries from eval_day."""
+        return self._root / "memory"
+
+    @property
+    def eval_marker_path(self) -> Path:
+        """~/.amini/.last_eval — ISO timestamp of last completed eval_day run."""
+        return self._root / ".last_eval"
+
     def ensure_dirs(self) -> None:
         """Create the full directory tree under ~/.amini/ if not already present."""
         for role in ("stt", "tts", "wake", "llm", "hailo", "speaker"):
@@ -80,6 +104,7 @@ class AmiPaths:
         self.conversations_dir.mkdir(parents=True, exist_ok=True)
         (self.profiles_dir / "embeddings").mkdir(parents=True, exist_ok=True)
         (self.data_dir / "messages").mkdir(parents=True, exist_ok=True)
+        self.memory_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Agent discovery

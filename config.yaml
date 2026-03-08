@@ -66,3 +66,30 @@ button_pins:
   interaction: 22
 
 default_agent: "qa"
+
+ally:
+  # Current interaction mode: manual | hot_word | ally
+  # Persisted to settings.json; this is just the default on first boot.
+  interaction_mode: hot_word
+
+  # Ally mode: how confident the LLM must be to speak autonomously (0–1).
+  # Currently gates whether the LLM SPEAK/SILENT decision is acted on.
+  threshold: 0.6
+
+  # How often (seconds) AllyListener evaluates ambient context to decide whether to speak.
+  check_interval_sec: 30
+
+  # Seconds of ambient audio context to retain in the rolling buffer.
+  ambient_buffer_sec: 120
+
+  # Max utterances to keep in the ambient context buffer.
+  max_ambient_utterances: 20
+
+  # Time of day for the daily eval_day run (HH:MM, 24-hour local time).
+  eval_day_time: "03:00"
+
+  # If true, eval_day appends a dated digest to soul.md after each evaluation.
+  update_soul_on_eval: false
+
+  # Owner considered "absent" from room if not heard for this many seconds.
+  owner_absent_threshold_sec: 300
