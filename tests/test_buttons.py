@@ -43,9 +43,9 @@ def test_machine_button_hold_time_is_5s():
     assert db.machine_btn.hold_time == 5
 
 
-def test_action_button_press_calls_action_click_handler():
+def test_action_button_press_calls_trigger_listening():
     db, _, _, core = _make_buttons()
-    assert db.action_btn.when_pressed is core.action_click_handler
+    assert db.action_btn.when_pressed is core.trigger_listening
 
 
 def test_action_button_hold_calls_cycle_state():
@@ -63,9 +63,9 @@ def test_interaction_button_press_calls_cycle_agent():
     assert db.interaction_btn.when_pressed is core.cycle_agent
 
 
-def test_interaction_button_hold_is_not_set():
-    db, _, _, _ = _make_buttons()
-    assert db.interaction_btn.when_held is None
+def test_interaction_button_hold_calls_cycle_mode():
+    db, _, _, core = _make_buttons()
+    assert db.interaction_btn.when_held is core.cycle_mode
 
 
 def test_button_pins_from_config():

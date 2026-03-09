@@ -13,6 +13,9 @@ def _make_display(timeout_sec=60):
     sys.modules["luma.core.interface.serial"].i2c = MagicMock(return_value=MagicMock())
     sys.modules["luma.oled.device"].ssd1306 = MagicMock(return_value=fake_device)
 
+    # Ensure hardware.display is importable before patch() resolves it
+    import hardware.display  # noqa: F401
+
     # Patch both ImageFont and ImageDraw so no real font file or drawing happens
     with patch("hardware.display.ImageFont") as mock_font, \
          patch("hardware.display.ImageDraw") as mock_draw, \
