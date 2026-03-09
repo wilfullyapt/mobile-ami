@@ -79,6 +79,36 @@ class ModelOrchestrator:
             if spec.eager:
                 self._load(spec.role)
 
+    def preload_for_mode(self, mode) -> None:
+        """
+        Eagerly load models needed for the given interaction mode so that
+        the first interaction after a mode change has minimal latency.
+
+        MANUAL    — no extra preloading (button-only; minimal inference).
+        HOT_WORD  — ensure WAKE + VAD are resident.
+        ALLY      — additionally preload STT + SPEAKER for ambient capture.
+
+        Already-loaded models are skipped. Missing registry specs are
+        silently ignored so partial configs don't raise.
+        """
+        from core.interaction_mode import InteractionMode
+
+        roles: list[ModelRole] = []
+        if mode in (InteractionMode.HOT_WORD, InteractionMode.ALLY):
+            roles.extend([ModelRole.WAKE, ModelRole.VAD])
+        if mode == InteractionMode.ALLY:
+            roles.extend([ModelRole.STT, ModelRole.SPEAKER])
+
+        for role in roles:
+            if role not in self._instances and self.has(role):
+                try:
+                    self._load(role)
+                except Exception as exc:  # pragma: no cover
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "preload_for_mode: failed to load %s: %s", role, exc
+                    )
+
     def shutdown(self):
         """Cleanly unload all models."""
         for role in list(self._instances.keys()):

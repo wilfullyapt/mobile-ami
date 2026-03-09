@@ -23,6 +23,8 @@ from core.device_server import DeviceServer
 from core.eval_day import EvalDay
 from core.owner_manager import OwnerManager
 from core.pipeline import VoicePipeline
+from core.power_manager import PowerManager
+from core.process_bus import BusEvent, ProcessBus
 from core.server.job_manager import JobManager
 from core.soul import SoulManager
 from core.updater import AutoUpdater
@@ -70,6 +72,14 @@ class VoiceAssistant:
         registry = ModelRegistry(self.config["models"], self.paths)
         self.orchestrator = ModelOrchestrator(registry)
         self.orchestrator.preload_eager()   # loads VAD + wake detector at startup
+        self.orchestrator.preload_for_mode(self.mode_manager.mode)
+
+        # ── Power management ───────────────────────────────────────────
+        self.power_manager = PowerManager()
+        self.power_manager.apply_for_mode(self.mode_manager.mode)
+
+        # ── IPC bus ────────────────────────────────────────────────────
+        self.bus = ProcessBus()
 
         # ── Tool layer ─────────────────────────────────────────────────
         self.tool_registry = ToolRegistry()
@@ -263,7 +273,8 @@ class VoiceAssistant:
     def cycle_mode(self):
         """
         Cycle interaction mode: manual → hot_word → ally → manual.
-        Manages AllyListener lifecycle on transitions.
+        Manages AllyListener lifecycle, CPU governor, and model preloading
+        on each transition.
         """
         old_mode = self.mode_manager.mode
         new_mode = self.mode_manager.cycle()
@@ -274,6 +285,11 @@ class VoiceAssistant:
 
         if new_mode == InteractionMode.ALLY and old_mode != InteractionMode.ALLY:
             self._start_ally_mode()
+
+        # Apply CPU governor and preload models for the new mode
+        self.power_manager.apply_for_mode(new_mode)
+        self.orchestrator.preload_for_mode(new_mode)
+        self.bus.publish(BusEvent.MODE_CHANGE, payload=new_mode.value, source="main")
 
         self._tts_speak(self.mode_manager.label)
         self.display.update_mode(self.agent_manager.current)

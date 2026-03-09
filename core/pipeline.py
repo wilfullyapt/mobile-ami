@@ -1,4 +1,3 @@
-import time
 import logging
 from dataclasses import dataclass, field
 from typing import Callable, Optional
@@ -85,6 +84,9 @@ class VoicePipeline:
         """
         Blocking loop: continuously read audio chunks, detect wake word,
         then hand off to run_once(). Returns when stop_flag() is True.
+
+        audio_chunk_fn (AudioManager.get_chunk) already blocks for the
+        duration of each 64 ms recording — no sleep needed.
         """
         while not stop_flag():
             chunk = audio_chunk_fn()
@@ -92,7 +94,6 @@ class VoicePipeline:
             if wake.detect(chunk):
                 logger.info("Wake word detected")
                 self.run_once()
-            time.sleep(0.05)
 
     # ------------------------------------------------------------------
     # Pipeline stages
