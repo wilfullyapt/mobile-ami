@@ -175,6 +175,8 @@ class VoiceAssistant:
             owner_manager=self.owner_manager,
             on_owner_established=self._on_owner_established,
             ally_listener=None,  # wired in when ally mode starts
+            voice_profiles=self.voice_profiles,
+            ally_config=ally_cfg,
         )
         self.agent_manager.inject("ally", self.ally_agent)
 
@@ -204,6 +206,7 @@ class VoiceAssistant:
             orchestrator=self.orchestrator,
             soul_manager=self.soul_manager,
             ally_config=ally_cfg,
+            ally_agent=self.ally_agent,
         )
 
         # ── Buttons ────────────────────────────────────────────────────
@@ -286,6 +289,7 @@ class VoiceAssistant:
             owner_name=self.owner_manager.owner_name,
             ally_config=self.config.get("ally", {}),
             on_context_ready=self._on_ally_context_ready,
+            paths=self.paths,
         )
         self._ally_listener = listener
         self.ally_agent._listener = listener
@@ -301,11 +305,11 @@ class VoiceAssistant:
     def _on_ally_context_ready(self, listener):
         """
         Called by AllyListener every check_interval_sec.
-        Asks the ally whether it should speak autonomously.
+        Uses interval_listen to review ambient notes and optionally speak.
         """
-        threshold = self.config.get("ally", {}).get("threshold", 0.6)
-        should_speak, message = self.ally_agent.should_intervene(threshold=threshold)
-        if should_speak and message:
+        pending_notes = listener.get_pending_notes()
+        message = self.ally_agent.interval_listen(pending_notes, self.agent_context)
+        if message:
             logger.info("Ally autonomous insertion: %s", message[:80])
             self.leds.set_color("blue")
             self._tts_speak(message)

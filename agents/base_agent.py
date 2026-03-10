@@ -78,3 +78,35 @@ class BaseAgent(ABC):
         Override in subclasses to add tool-calling capability.
         """
         return []
+
+    # ------------------------------------------------------------------
+    # Ally mode interface — override in AllyAgent (and compatible plugins)
+    # ------------------------------------------------------------------
+
+    def interval_listen(
+        self,
+        notes: list,
+        context: "Optional[AgentContext]" = None,
+    ) -> Optional[str]:
+        """
+        Called every check_interval_sec with accumulated AmbientNotes.
+
+        Return a spoken message string to insert autonomously, or None to
+        remain silent. Default implementation: always silent (not ally-eligible).
+        """
+        return None
+
+    def daily_update(self, context: "Optional[AgentContext]" = None) -> None:
+        """
+        Called once per day (typically at 03:00) for self-reflection and
+        memory/soul updates. Default: no-op.
+        """
+
+    @classmethod
+    def supports_ally_mode(cls) -> bool:
+        """
+        True if this agent class overrides ``interval_listen``.
+
+        Used by AgentManager / UI to show which agents are ally-eligible.
+        """
+        return cls.interval_listen is not BaseAgent.interval_listen

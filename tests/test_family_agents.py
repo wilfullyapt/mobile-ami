@@ -7,7 +7,7 @@ All LLM, TTS, and filesystem interactions are mocked — no hardware required.
 import json
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from agents.tools.tool_registry import ToolRegistry
 from agents.tools.calendar_tool import CalendarAddTool, CalendarQueryTool
@@ -454,4 +454,4 @@ class TestPipelinePassesSpeaker:
         ctx = pipeline.run_once()
 
         # With no speaker profiles, speaker should be None
-        agent.process.assert_called_once_with("hello", speaker=None)
+        agent.process.assert_called_once_with("hello", speaker=None, context=ANY)

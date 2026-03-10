@@ -72,6 +72,25 @@ class AmiPaths:
         """~/.amini/data/messages/<name>/ — per-person voice message inbox."""
         return self.data_dir / "messages" / name
 
+    def agent_data_dir(self, slug: str) -> Path:
+        """~/.amini/data/<slug>/ — per-agent private data directory."""
+        return self.data_dir / slug
+
+    @property
+    def ally_notes_dir(self) -> Path:
+        """~/.amini/data/ally/notes/ — AmbientNote JSON files."""
+        return self.agent_data_dir("ally") / "notes"
+
+    @property
+    def ally_audio_dir(self) -> Path:
+        """~/.amini/data/ally/audio/ — unknown voice WAV clips."""
+        return self.agent_data_dir("ally") / "audio"
+
+    @property
+    def ally_memory_dir(self) -> Path:
+        """~/.amini/data/ally/memory/ — ally-written dated memory entries."""
+        return self.agent_data_dir("ally") / "memory"
+
     # ------------------------------------------------------------------
     # Ally / owner / soul paths
     # ------------------------------------------------------------------
@@ -105,6 +124,9 @@ class AmiPaths:
         (self.profiles_dir / "embeddings").mkdir(parents=True, exist_ok=True)
         (self.data_dir / "messages").mkdir(parents=True, exist_ok=True)
         self.memory_dir.mkdir(parents=True, exist_ok=True)
+        self.ally_notes_dir.mkdir(parents=True, exist_ok=True)
+        self.ally_audio_dir.mkdir(parents=True, exist_ok=True)
+        self.ally_memory_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Agent discovery

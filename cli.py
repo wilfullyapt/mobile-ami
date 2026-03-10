@@ -18,6 +18,7 @@ import json
 import logging
 import subprocess
 import sys
+from importlib.metadata import version as _pkg_version, PackageNotFoundError
 
 import yaml
 
@@ -146,10 +147,16 @@ def cmd_test(args, paths: AmiPaths) -> None:
 # ---------------------------------------------------------------------------
 
 def _build_parser() -> argparse.ArgumentParser:
+    try:
+        _version = _pkg_version("amini")
+    except PackageNotFoundError:
+        _version = "dev"
+
     parser = argparse.ArgumentParser(
         prog="amini",
         description="mobile-ami voice assistant — plugin manager and launcher",
     )
+    parser.add_argument("--version", action="version", version=f"amini {_version}")
     sub = parser.add_subparsers(dest="command", metavar="<command>")
 
     # run

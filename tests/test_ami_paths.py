@@ -118,3 +118,25 @@ class TestResolveModelPath:
         assert stt != tts
         assert "stt" in stt
         assert "tts" in tts
+
+
+# ---------------------------------------------------------------------------
+# Agent data directories
+# ---------------------------------------------------------------------------
+
+class TestAgentDataDirs:
+    def test_agent_data_dir_slug(self, paths):
+        assert paths.agent_data_dir("ally") == paths.data_dir / "ally"
+        assert paths.agent_data_dir("my_agent") == paths.data_dir / "my_agent"
+
+    def test_ally_notes_dir(self, paths):
+        assert paths.ally_notes_dir == paths.data_dir / "ally" / "notes"
+
+    def test_ally_audio_dir(self, paths):
+        assert paths.ally_audio_dir == paths.data_dir / "ally" / "audio"
+
+    def test_ensure_dirs_creates_ally_subdirs(self, paths):
+        paths.ensure_dirs()
+        assert paths.ally_notes_dir.is_dir()
+        assert paths.ally_audio_dir.is_dir()
+        assert paths.ally_memory_dir.is_dir()

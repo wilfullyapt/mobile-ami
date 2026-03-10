@@ -60,12 +60,14 @@ class EvalDay:
         orchestrator,
         soul_manager: "SoulManager",
         ally_config: dict,
+        ally_agent=None,
     ):
         self._paths = paths
         self._orch = orchestrator
         self._soul = soul_manager
         self._eval_time_str: str = ally_config.get("eval_day_time", "03:00")
         self._update_soul: bool = ally_config.get("update_soul_on_eval", False)
+        self._ally_agent = ally_agent
         self._running = False
         self._scheduler_thread: Optional[threading.Thread] = None
 
@@ -121,6 +123,12 @@ class EvalDay:
             if self._update_soul:
                 self._soul.append_daily_notes(summary, target_date)
             logger.info("EvalDay: evaluation complete for %s", target_date)
+
+        if self._ally_agent is not None:
+            try:
+                self._ally_agent.daily_update(context=None)
+            except Exception as exc:
+                logger.warning("EvalDay: ally daily_update failed: %s", exc)
 
         self._write_eval_marker()
         return {"date": target_date.isoformat(), "summary": summary}

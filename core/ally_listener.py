@@ -21,6 +21,7 @@ It is stopped immediately when the mode is changed away from ALLY.
 import logging
 import threading
 import time
+import wave
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -30,6 +31,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from core.voice_profiles import VoiceProfileManager
+    from core.ami_paths import AmiPaths
 
 logger = logging.getLogger(__name__)
 
@@ -85,22 +87,35 @@ class AllyListener:
         owner_name: Optional[str],
         ally_config: dict,
         on_context_ready: Optional[Callable[["AllyListener"], None]] = None,
+        paths: Optional["AmiPaths"] = None,
     ):
         self._orch = orchestrator
         self._audio = audio
         self._voice_profiles = voice_profiles
         self._owner_name = owner_name
         self._on_context_ready = on_context_ready
+        self._paths = paths
 
         self._max_utterances: int = ally_config.get("max_ambient_utterances", 20)
         self._buffer_sec: float = ally_config.get("ambient_buffer_sec", 120.0)
         self._check_interval: float = ally_config.get("check_interval_sec", 30.0)
+        self._chunk_duration: float = ally_config.get("ambient_chunk_sec", 180.0)
+        self._unknown_clip_sec: float = ally_config.get("unknown_voice_clip_sec", 5.0)
 
         self._buffer: deque[AmbientUtterance] = deque(maxlen=self._max_utterances)
         self._lock = threading.Lock()
         self._running = False
         self._listen_thread: Optional[threading.Thread] = None
         self._check_thread: Optional[threading.Thread] = None
+
+        # Chunk state
+        self._chunk_start: datetime = datetime.now(timezone.utc)
+        self._chunk_utterances: list[AmbientUtterance] = []
+        self._chunk_index: int = 0
+        self._current_chunk_unknown_clips: list[str] = []
+        self._unknown_clip_count: int = 0
+        self._pending_notes: list = []  # list[AmbientNote]
+        self._pending_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -206,6 +221,23 @@ class AllyListener:
                 with self._lock:
                     self._buffer.append(utterance)
 
+                # Chunk accumulation
+                self._chunk_utterances.append(utterance)
+
+                # Save unknown voice clip if speaker unrecognised and long enough
+                if (
+                    speaker is None
+                    and duration_sec > 0.5
+                    and self._paths is not None
+                ):
+                    clip = audio_frames[: int(self._unknown_clip_sec * 16_000)]
+                    self._save_unknown_clip(clip)
+
+                # Flush chunk if duration has elapsed
+                elapsed = (datetime.now(timezone.utc) - self._chunk_start).total_seconds()
+                if elapsed >= self._chunk_duration:
+                    self._flush_chunk()
+
                 logger.debug(
                     "AllyListener captured [%s%s]: %s",
                     speaker or "?",
@@ -223,7 +255,88 @@ class AllyListener:
         while self._running:
             time.sleep(self._check_interval)
             if self._running and self._on_context_ready is not None:
+                # Flush any partial chunk before the callback so the caller
+                # always receives up-to-date notes even in a quiet room.
+                if self._chunk_utterances:
+                    self._flush_chunk()
                 try:
                     self._on_context_ready(self)
                 except Exception as exc:
                     logger.warning("AllyListener: context callback error: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Chunk management
+    # ------------------------------------------------------------------
+
+    def _flush_chunk(self) -> None:
+        """Seal the current utterance chunk into an AmbientNote."""
+        if not self._chunk_utterances:
+            return
+
+        from core.ambient_note import AmbientNote
+
+        now = datetime.now(timezone.utc)
+        note = AmbientNote(
+            chunk_index=self._chunk_index,
+            chunk_start=self._chunk_start,
+            chunk_end=now,
+            utterances=list(self._chunk_utterances),
+            unknown_clip_paths=list(self._current_chunk_unknown_clips),
+        )
+
+        # Persist to disk if paths are configured
+        if self._paths is not None:
+            try:
+                notes_dir = self._paths.ally_notes_dir
+                notes_dir.mkdir(parents=True, exist_ok=True)
+                fname = self._chunk_start.strftime("%Y%m%dT%H%M%S%f") + ".json"
+                (notes_dir / fname).write_text(note.to_json())
+            except Exception as exc:
+                logger.warning("AllyListener: could not persist note: %s", exc)
+
+        with self._pending_lock:
+            self._pending_notes.append(note)
+
+        logger.debug(
+            "AllyListener: flushed chunk %d (%d utterances)",
+            self._chunk_index,
+            len(self._chunk_utterances),
+        )
+
+        # Reset chunk state
+        self._chunk_utterances = []
+        self._chunk_start = datetime.now(timezone.utc)
+        self._chunk_index += 1
+        self._current_chunk_unknown_clips = []
+
+    def _save_unknown_clip(self, audio: np.ndarray) -> None:
+        """Write a short WAV clip of an unrecognised speaker to disk."""
+        try:
+            audio_dir = self._paths.ally_audio_dir
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            fname = (
+                datetime.now().strftime("%Y%m%dT%H%M%S%f")
+                + f"_unknown_{self._unknown_clip_count}.wav"
+            )
+            path = audio_dir / fname
+            with wave.open(str(path), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(16_000)
+                # Ensure int16 before writing
+                if audio.dtype != np.int16:
+                    pcm = (audio * 32768).clip(-32768, 32767).astype(np.int16)
+                else:
+                    pcm = audio
+                wf.writeframes(pcm.tobytes())
+            self._current_chunk_unknown_clips.append(str(path))
+            self._unknown_clip_count += 1
+            logger.debug("AllyListener: saved unknown clip → %s", path)
+        except Exception as exc:
+            logger.warning("AllyListener: could not save unknown clip: %s", exc)
+
+    def get_pending_notes(self) -> list:
+        """Return and clear all pending AmbientNotes (thread-safe)."""
+        with self._pending_lock:
+            notes, self._pending_notes = self._pending_notes, []
+            return notes
