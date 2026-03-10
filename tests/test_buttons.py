@@ -48,9 +48,9 @@ def test_action_button_press_calls_trigger_listening():
     assert db.action_btn.when_pressed is core.trigger_listening
 
 
-def test_action_button_hold_calls_cycle_state():
-    db, _, network, _ = _make_buttons()
-    assert db.action_btn.when_held is network.cycle_state
+def test_action_button_hold_calls_cycle_mode():
+    db, _, _, core = _make_buttons()
+    assert db.action_btn.when_held is core.cycle_mode
 
 
 def test_action_button_hold_time_is_1_5s():
@@ -63,9 +63,9 @@ def test_interaction_button_press_calls_cycle_agent():
     assert db.interaction_btn.when_pressed is core.cycle_agent
 
 
-def test_interaction_button_hold_calls_cycle_mode():
-    db, _, _, core = _make_buttons()
-    assert db.interaction_btn.when_held is core.cycle_mode
+def test_interaction_button_hold_calls_network_cycle_state():
+    db, _, network, _ = _make_buttons()
+    assert db.interaction_btn.when_held is network.cycle_state
 
 
 def test_button_pins_from_config():

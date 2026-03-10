@@ -12,12 +12,12 @@ class DeviceButtons:
     Action button (GPIO 27):
       press  → core.trigger_listening()   always triggers a manual listen cycle
                                           (works in all three interaction modes)
-      hold   → network.cycle_state()      1.5 s hold → cycle offline/hotspot/wifi
+      hold   → core.cycle_mode()          1.5 s hold → cycle interaction mode:
+                                           manual → hot_word → ally → manual
 
     Interaction button (GPIO 22):
       press  → core.cycle_agent()         advance to next AI agent
-      hold   → core.cycle_mode()          1.5 s hold → cycle interaction mode:
-                                           manual → hot_word → ally → manual
+      hold   → network.cycle_state()      1.5 s hold → cycle offline/hotspot/wifi
     """
 
     def __init__(self, config, display, network, core):
@@ -30,7 +30,7 @@ class DeviceButtons:
         self.machine_btn.when_held = core.graceful_shutdown
 
         self.action_btn.when_pressed = core.trigger_listening
-        self.action_btn.when_held = network.cycle_state
+        self.action_btn.when_held = core.cycle_mode
 
         self.interaction_btn.when_pressed = core.cycle_agent
-        self.interaction_btn.when_held = core.cycle_mode
+        self.interaction_btn.when_held = network.cycle_state

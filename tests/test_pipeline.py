@@ -84,7 +84,7 @@ class TestVoicePipelineRunOnce:
         assert ctx.transcript == "hello"
         assert ctx.agent_response == "world"
         stt.transcribe.assert_called_once()
-        agent.process.assert_called_once_with("hello", speaker=None)
+        agent.process.assert_called_once_with("hello", speaker=None, context=None)
         tts.speak.assert_called_once_with("world")
 
     def test_leds_set_blue_on_listen(self):

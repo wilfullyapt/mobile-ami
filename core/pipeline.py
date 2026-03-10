@@ -39,6 +39,10 @@ class VoicePipeline:
 
     If conv_logger is provided, each completed interaction is persisted
     to ~/.amini/conversations/<agent>/ via ConversationLogger.log().
+
+    If agent_context is provided, the shared AgentContext is updated with
+    the current speaker, user message, and assistant reply on each turn so
+    all agents see a consistent rolling history.
     """
 
     def __init__(
@@ -50,6 +54,7 @@ class VoicePipeline:
         on_speak: Callable[[str], None],
         conv_logger=None,
         voice_profiles=None,
+        agent_context=None,
     ):
         self._orch = orchestrator
         self._agents = agent_manager
@@ -58,6 +63,7 @@ class VoicePipeline:
         self._on_speak = on_speak
         self._conv_logger = conv_logger
         self._voice_profiles = voice_profiles  # Optional[VoiceProfileManager]
+        self._agent_context = agent_context    # Optional[AgentContext]
 
     # ------------------------------------------------------------------
     # Public interface
@@ -140,7 +146,27 @@ class VoicePipeline:
 
     def _stage_respond(self, ctx: PipelineContext):
         agent = self._agents.get_current_agent()
-        ctx.agent_response = agent.process(ctx.transcript, speaker=ctx.speaker)
+
+        # Update shared context with speaker + user message before calling agent
+        if self._agent_context:
+            self._agent_context.current_speaker = ctx.speaker
+            self._agent_context.add_message("user", ctx.transcript)
+
+        ctx.agent_response = agent.process(
+            ctx.transcript,
+            speaker=ctx.speaker,
+            context=self._agent_context,
+        )
+
+        # Append assistant reply to shared context (agents that don't update
+        # context themselves will have their reply recorded here)
+        if self._agent_context and ctx.agent_response:
+            # Avoid duplicate appends — LLMResponseAgent / PlanningAgent
+            # already append inside process(); check last entry.
+            last = (self._agent_context.history[-1] if self._agent_context.history else None)
+            if last is None or last.get("content") != ctx.agent_response:
+                self._agent_context.add_message("assistant", ctx.agent_response)
+
         if self._conv_logger and ctx.transcript and ctx.agent_response:
             self._conv_logger.log(
                 self._agents.current, ctx.transcript, ctx.agent_response

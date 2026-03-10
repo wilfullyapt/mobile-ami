@@ -21,7 +21,7 @@ class QAAgent(BaseAgent):
     can address the user by name and adjust its tone.
     """
 
-    def process(self, text: str, speaker: Optional[str] = None) -> str:
+    def process(self, text: str, speaker: Optional[str] = None, context=None) -> str:
         llm = self._orchestrator.get(ModelRole.LLM)
         tools = [t.to_llm_schema() for t in self.get_tools()]
         messages = []

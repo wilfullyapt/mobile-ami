@@ -154,7 +154,7 @@ class AllyAgent(BaseAgent):
     # Standard agent interaction (called by pipeline)
     # ------------------------------------------------------------------
 
-    def process(self, text: str, speaker: Optional[str] = None) -> str:
+    def process(self, text: str, speaker: Optional[str] = None, context=None) -> str:
         """
         Handle an explicit user interaction.
 

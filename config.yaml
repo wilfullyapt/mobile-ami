@@ -67,6 +67,17 @@ button_pins:
 
 default_agent: "qa"
 
+agents:
+  # Which agents are exposed for cycling via the interaction button.
+  # Order here determines cycling order. If omitted, all built-ins + plugins load.
+  exposed:
+    - llm_response
+    - planning
+    - block_timer
+  # "per_interaction" means use whichever agent is currently active.
+  action_agent: per_interaction
+  hotword_agent: per_interaction
+
 ally:
   # Current interaction mode: manual | hot_word | ally
   # Persisted to settings.json; this is just the default on first boot.

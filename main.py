@@ -12,6 +12,7 @@ from hardware.leds import LEDs
 from hardware.network_manager import NetworkManager
 from hardware.power import get_battery
 
+from core.agent_context import AgentContext
 from core.ami_paths import AmiPaths
 from core.addon_installer import AddonInstaller
 from core.conversation_logger import ConversationLogger
@@ -32,7 +33,12 @@ from core.voice_profiles import VoiceProfileManager
 
 from agents.ally_agent import AllyAgent
 from agents.tools.tool_registry import ToolRegistry
-from agents.tools.timer_tool import TimerTool
+from agents.base_sub_agent import register_sub_agent
+from agents.subagents.memory_subagent import MemorySubAgent
+from agents.subagents.timer_subagent import TimerSubAgent
+from agents.subagents.hardware_subagent import HardwareSubAgent
+from agents.subagents.updater_subagent import UpdaterSubAgent
+from agents.subagents.conversation_subagent import ConversationSubAgent
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -81,23 +87,81 @@ class VoiceAssistant:
         # ── IPC bus ────────────────────────────────────────────────────
         self.bus = ProcessBus()
 
-        # ── Tool layer ─────────────────────────────────────────────────
-        self.tool_registry = ToolRegistry()
-        self.tool_registry.register(TimerTool(on_speak=self._tts_speak))
+        # ── Hardware layer (before tools so sub-agents can hold refs) ──
+        dev_cfg = self.config.get("device", {})
+        self.display = StatusDisplay(timeout_sec=dev_cfg.get("display_timeout_sec", 15))
+        self.network = NetworkManager(self.config)
+        self.leds = LEDs()
+        self.audio = AudioManager()
+        self.updater = AutoUpdater(self.network, self.config)
 
-        # ── Agent layer — built-ins + installed plugins ─────────────────
-        installed = self.paths.list_agents()
-        builtin_slugs = [
-            "qa", "block_timer",
-            "family_scheduler", "shopping_list",
-            "kids_story", "morning_briefing", "family_intercom",
-        ]
-        all_slugs = builtin_slugs + [s for s in installed if s not in builtin_slugs]
+        # ── Shared agent context ───────────────────────────────────────
+        self.agent_context = AgentContext.empty()
+        self.agent_context.set_flag("interaction_mode", self.mode_manager.mode.value)
+
+        # ── Tool / sub-agent layer ─────────────────────────────────────
+        self.tool_registry = ToolRegistry()
+
+        register_sub_agent(
+            self.tool_registry,
+            MemorySubAgent(self.orchestrator, self.paths),
+        )
+        register_sub_agent(
+            self.tool_registry,
+            TimerSubAgent(
+                self.orchestrator,
+                self.paths,
+                on_speak=self._tts_speak,
+            ),
+        )
+        register_sub_agent(
+            self.tool_registry,
+            HardwareSubAgent(
+                self.orchestrator,
+                self.paths,
+                network=self.network,
+                leds=self.leds,
+            ),
+        )
+        self._installer = AddonInstaller(self.paths)
+        register_sub_agent(
+            self.tool_registry,
+            UpdaterSubAgent(
+                self.orchestrator,
+                self.paths,
+                installer=self._installer,
+            ),
+        )
+        register_sub_agent(
+            self.tool_registry,
+            ConversationSubAgent(
+                self.orchestrator,
+                self.paths,
+                context=self.agent_context,
+            ),
+        )
+
+        # ── Agent layer — config-driven exposed list + installed plugins ─
+        agents_cfg = self.config.get("agents", {})
+        exposed = agents_cfg.get("exposed", None)
+        if exposed:
+            installed = self.paths.list_agents()
+            all_slugs = exposed + [s for s in installed if s not in exposed]
+        else:
+            all_slugs = [
+                "llm_response", "planning", "block_timer",
+                "family_scheduler", "shopping_list",
+                "kids_story", "morning_briefing", "family_intercom",
+            ]
+            installed = self.paths.list_agents()
+            all_slugs += [s for s in installed if s not in all_slugs]
+
         self.agent_manager = AgentManager(
             slugs=all_slugs,
             orchestrator=self.orchestrator,
             tool_registry=self.tool_registry,
             paths=self.paths,
+            context=self.agent_context,
         )
 
         # ── Ally agent (injected — needs soul/owner/listener at runtime) ─
@@ -114,19 +178,10 @@ class VoiceAssistant:
         )
         self.agent_manager.inject("ally", self.ally_agent)
 
-        # ── Hardware layer ─────────────────────────────────────────────
-        dev_cfg = self.config.get("device", {})
-        self.display = StatusDisplay(timeout_sec=dev_cfg.get("display_timeout_sec", 15))
-        self.network = NetworkManager(self.config)
-        self.leds = LEDs()
-        self.audio = AudioManager()
-        self.updater = AutoUpdater(self.network, self.config)
-
         # ── Conversation logger ────────────────────────────────────────
         self.conv_logger = ConversationLogger(self.paths)
 
-        # ── Plugin installer and async job manager ─────────────────────
-        self.installer = AddonInstaller(self.paths)
+        # ── Async job manager ──────────────────────────────────────────
         self.job_manager = JobManager()
 
         # ── Device server ───────────────────────────────────────────────
@@ -135,7 +190,7 @@ class VoiceAssistant:
             self.server = DeviceServer(
                 port=srv_cfg.get("port", 5000),
                 voice_assistant=self,
-                addon_installer=self.installer,
+                addon_installer=self._installer,
                 conv_logger=self.conv_logger,
                 job_manager=self.job_manager,
             )
@@ -163,6 +218,7 @@ class VoiceAssistant:
             on_speak=self._tts_speak,
             conv_logger=self.conv_logger,
             voice_profiles=self.voice_profiles,
+            agent_context=self.agent_context,
         )
 
         # ── Background threads ─────────────────────────────────────────
@@ -289,6 +345,7 @@ class VoiceAssistant:
         # Apply CPU governor and preload models for the new mode
         self.power_manager.apply_for_mode(new_mode)
         self.orchestrator.preload_for_mode(new_mode)
+        self.agent_context.set_flag("interaction_mode", new_mode.value)
         self.bus.publish(BusEvent.MODE_CHANGE, payload=new_mode.value, source="main")
 
         self._tts_speak(self.mode_manager.label)

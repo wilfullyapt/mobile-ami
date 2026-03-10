@@ -9,18 +9,24 @@ from agents.tools.tool_registry import ToolRegistry
 
 if TYPE_CHECKING:
     from core.ami_paths import AmiPaths
+    from core.agent_context import AgentContext
 
 logger = logging.getLogger(__name__)
 
 # Built-in agents shipped with the project — always available.
 _BUILTIN: dict[str, str] = {
-    "qa": "agents.qa_agent.QAAgent",
-    "block_timer": "agents.block_timer_agent.BlockTimerAgent",
+    # Primary selectable agents
+    "llm_response": "agents.llm_response_agent.LLMResponseAgent",
+    "planning":     "agents.planning_agent.PlanningAgent",
+    "block_timer":  "agents.block_timer_agent.BlockTimerAgent",
+    # Backward-compat alias — "qa" resolves to LLMResponseAgent
+    "qa":           "agents.llm_response_agent.LLMResponseAgent",
+    # Family agents
     "family_scheduler": "agents.family_scheduler_agent.FamilySchedulerAgent",
-    "shopping_list": "agents.shopping_list_agent.ShoppingListAgent",
-    "kids_story": "agents.kids_story_agent.KidsStoryAgent",
+    "shopping_list":    "agents.shopping_list_agent.ShoppingListAgent",
+    "kids_story":       "agents.kids_story_agent.KidsStoryAgent",
     "morning_briefing": "agents.morning_briefing_agent.MorningBriefingAgent",
-    "family_intercom": "agents.family_intercom_agent.FamilyIntercomAgent",
+    "family_intercom":  "agents.family_intercom_agent.FamilyIntercomAgent",
 }
 
 
@@ -34,6 +40,10 @@ class AgentManager:
 
     Each agent receives the shared ModelOrchestrator and ToolRegistry so it can
     access models and execute tools. The active agent is cycled with cycle().
+
+    Lifecycle hooks ``on_entry`` / ``on_exit`` are fired on the old and new
+    agents whenever the active agent changes (via cycle() or set_agent()).
+    The optional ``context`` is forwarded to those hooks.
     """
 
     def __init__(
@@ -42,10 +52,12 @@ class AgentManager:
         orchestrator: ModelOrchestrator,
         tool_registry: ToolRegistry,
         paths: "Optional[AmiPaths]" = None,
+        context: "Optional[AgentContext]" = None,
     ):
         self._slugs = slugs
         self._index = 0
         self._paths = paths
+        self._context = context
         self._instances = {
             s: self._load(s, orchestrator, tool_registry)
             for s in slugs
@@ -64,13 +76,21 @@ class AgentManager:
         return list(self._slugs)
 
     def cycle(self) -> None:
+        old_agent = self._instances[self.current]
+        old_agent.on_exit(self._context)
         self._index = (self._index + 1) % len(self._slugs)
+        new_agent = self._instances[self.current]
+        new_agent.on_entry(self._context)
 
     def set_agent(self, slug: str) -> None:
         """Switch the active agent by slug. Raises ValueError if unknown."""
         if slug not in self._slugs:
             raise ValueError(f"Unknown agent: {slug!r}")
+        old_agent = self._instances[self.current]
+        old_agent.on_exit(self._context)
         self._index = self._slugs.index(slug)
+        new_agent = self._instances[self.current]
+        new_agent.on_entry(self._context)
 
     def inject(self, slug: str, agent_instance) -> None:
         """

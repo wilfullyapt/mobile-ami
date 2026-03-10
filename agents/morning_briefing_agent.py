@@ -54,7 +54,7 @@ class MorningBriefingAgent(BaseAgent):
     messages, then uses the LLM to compose a natural spoken summary.
     """
 
-    def process(self, text: str, speaker: Optional[str] = None) -> str:
+    def process(self, text: str, speaker: Optional[str] = None, context=None) -> str:
         llm = self._orchestrator.get(ModelRole.LLM)
 
         today = date.today()

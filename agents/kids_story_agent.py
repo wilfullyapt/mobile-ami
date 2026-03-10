@@ -52,7 +52,7 @@ class KidsStoryAgent(BaseAgent):
         super().__init__(orchestrator, tool_registry, paths)
         self._story_messages: list[dict] = []
 
-    def process(self, text: str, speaker: Optional[str] = None) -> str:
+    def process(self, text: str, speaker: Optional[str] = None, context=None) -> str:
         llm = self._orchestrator.get(ModelRole.LLM)
 
         # Detect intent to start a fresh story
