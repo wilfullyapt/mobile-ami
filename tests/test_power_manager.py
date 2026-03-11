@@ -4,8 +4,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch, mock_open
 
-from core.interaction_mode import InteractionMode
-from core.power_manager import PowerManager, _GOVERNOR_MAP, _governor_paths
+from core.modes.interaction_mode import InteractionMode
+from core.modes.power_manager import PowerManager, _GOVERNOR_MAP, _governor_paths
 
 
 # ---------------------------------------------------------------------------
@@ -48,22 +48,22 @@ def _make_governor_paths(tmp_path, n=4) -> list[Path]:
 
 class TestPowerManagerUnavailable:
     def test_available_false_when_no_sysfs(self):
-        with patch("core.power_manager._governor_paths", return_value=[]):
+        with patch("core.modes.power_manager._governor_paths", return_value=[]):
             pm = PowerManager()
         assert pm.available is False
 
     def test_set_governor_returns_false_when_unavailable(self):
-        with patch("core.power_manager._governor_paths", return_value=[]):
+        with patch("core.modes.power_manager._governor_paths", return_value=[]):
             pm = PowerManager()
         assert pm.set_governor("powersave") is False
 
     def test_apply_for_mode_returns_false_when_unavailable(self):
-        with patch("core.power_manager._governor_paths", return_value=[]):
+        with patch("core.modes.power_manager._governor_paths", return_value=[]):
             pm = PowerManager()
         assert pm.apply_for_mode(InteractionMode.MANUAL) is False
 
     def test_current_governor_is_none_when_unavailable(self):
-        with patch("core.power_manager._governor_paths", return_value=[]):
+        with patch("core.modes.power_manager._governor_paths", return_value=[]):
             pm = PowerManager()
         assert pm.current_governor is None
 
@@ -75,19 +75,19 @@ class TestPowerManagerUnavailable:
 class TestPowerManagerAvailable:
     def test_available_true_when_paths_exist(self, tmp_path):
         paths = _make_governor_paths(tmp_path)
-        with patch("core.power_manager._governor_paths", return_value=paths):
+        with patch("core.modes.power_manager._governor_paths", return_value=paths):
             pm = PowerManager()
         assert pm.available is True
 
     def test_reads_initial_governor_from_sysfs(self, tmp_path):
         paths = _make_governor_paths(tmp_path)
-        with patch("core.power_manager._governor_paths", return_value=paths):
+        with patch("core.modes.power_manager._governor_paths", return_value=paths):
             pm = PowerManager()
         assert pm.current_governor == "ondemand"
 
     def test_set_governor_writes_all_cores(self, tmp_path):
         paths = _make_governor_paths(tmp_path, n=4)
-        with patch("core.power_manager._governor_paths", return_value=paths):
+        with patch("core.modes.power_manager._governor_paths", return_value=paths):
             pm = PowerManager()
             result = pm.set_governor("powersave")
         assert result is True
@@ -96,14 +96,14 @@ class TestPowerManagerAvailable:
 
     def test_set_governor_updates_current_governor(self, tmp_path):
         paths = _make_governor_paths(tmp_path)
-        with patch("core.power_manager._governor_paths", return_value=paths):
+        with patch("core.modes.power_manager._governor_paths", return_value=paths):
             pm = PowerManager()
             pm.set_governor("performance")
         assert pm.current_governor == "performance"
 
     def test_set_same_governor_is_noop(self, tmp_path):
         paths = _make_governor_paths(tmp_path)
-        with patch("core.power_manager._governor_paths", return_value=paths):
+        with patch("core.modes.power_manager._governor_paths", return_value=paths):
             pm = PowerManager()
             pm.set_governor("ondemand")  # already ondemand
             # Overwrite file to track further writes
@@ -117,7 +117,7 @@ class TestPowerManagerAvailable:
 
     def test_apply_for_mode_manual_sets_powersave(self, tmp_path):
         paths = _make_governor_paths(tmp_path)
-        with patch("core.power_manager._governor_paths", return_value=paths):
+        with patch("core.modes.power_manager._governor_paths", return_value=paths):
             pm = PowerManager()
             pm.apply_for_mode(InteractionMode.MANUAL)
         for p in paths:
@@ -125,7 +125,7 @@ class TestPowerManagerAvailable:
 
     def test_apply_for_mode_ally_sets_performance(self, tmp_path):
         paths = _make_governor_paths(tmp_path)
-        with patch("core.power_manager._governor_paths", return_value=paths):
+        with patch("core.modes.power_manager._governor_paths", return_value=paths):
             pm = PowerManager()
             pm.apply_for_mode(InteractionMode.ALLY)
         for p in paths:
@@ -136,7 +136,7 @@ class TestPowerManagerAvailable:
         # Start with powersave so a change is forced
         for p in paths:
             p.write_text("powersave")
-        with patch("core.power_manager._governor_paths", return_value=paths):
+        with patch("core.modes.power_manager._governor_paths", return_value=paths):
             pm = PowerManager()
             pm.apply_for_mode(InteractionMode.HOT_WORD)
         for p in paths:
@@ -154,7 +154,7 @@ class TestPowerManagerPermissionError:
         for p in paths:
             p.chmod(0o444)
         try:
-            with patch("core.power_manager._governor_paths", return_value=paths):
+            with patch("core.modes.power_manager._governor_paths", return_value=paths):
                 pm = PowerManager()
                 result = pm.set_governor("powersave")
             # On systems where we can't write: returns False

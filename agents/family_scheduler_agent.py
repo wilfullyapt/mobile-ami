@@ -16,7 +16,7 @@ from typing import Optional
 
 from agents.base_agent import BaseAgent
 from agents.tools.calendar_tool import CalendarAddTool, CalendarQueryTool
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,13 @@ class FamilySchedulerAgent(BaseAgent):
     Exposes two tools to the LLM: calendar_add and calendar_query.
     The LLM decides which to call based on the user's utterance.
     """
+
+    def on_entry(self, context=None) -> None:
+        if context is not None:
+            context.set_flag("active_agent", "family_scheduler")
+
+    def on_exit(self, context=None) -> None:
+        pass
 
     def get_tools(self):
         if self._paths is None:

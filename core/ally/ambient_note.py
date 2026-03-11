@@ -72,7 +72,7 @@ class AmbientNote:
 
     @classmethod
     def from_dict(cls, d: dict) -> "AmbientNote":
-        from core.ally_listener import AmbientUtterance
+        from core.ally.listener import AmbientUtterance
 
         utterances = [
             AmbientUtterance(

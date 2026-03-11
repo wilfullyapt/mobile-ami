@@ -16,18 +16,18 @@ from core.agent_context import AgentContext
 from core.ami_paths import AmiPaths
 from core.addon_installer import AddonInstaller
 from core.conversation_logger import ConversationLogger
-from core.interaction_mode import InteractionMode, ModeManager
-from core.model_registry import ModelRegistry, ModelRole
-from core.model_orchestrator import ModelOrchestrator
+from core.modes.interaction_mode import InteractionMode, ModeManager
+from core.models.registry import ModelRegistry, ModelRole
+from core.models.orchestrator import ModelOrchestrator
 from core.agent_manager import AgentManager
-from core.device_server import DeviceServer
+from core.server.device_server import DeviceServer
 from core.eval_day import EvalDay
 from core.owner_manager import OwnerManager
 from core.pipeline import VoicePipeline
-from core.power_manager import PowerManager
+from core.modes.power_manager import PowerManager
 from core.process_bus import BusEvent, ProcessBus
 from core.server.job_manager import JobManager
-from core.soul import SoulManager
+from core.ally.soul import SoulManager
 from core.updater import AutoUpdater
 from core.voice_profiles import VoiceProfileManager
 
@@ -228,7 +228,10 @@ class VoiceAssistant:
         threading.Thread(target=self._status_loop, daemon=True).start()
         self.eval_day.start()
 
-        self.display.update(50, 4.1, "offline", "", self.agent_manager.current, "Ready")
+        self.display.update(
+            50, 4.1, "offline", "", self.agent_manager.current,
+            interaction_mode=self.mode_manager.mode.value,
+        )
         self.leds.set_color("green")
         self.updater.mark_as_healthy()
         logger.info("Interaction mode: %s", self.mode_manager.mode.value)
@@ -252,6 +255,9 @@ class VoiceAssistant:
                 self.network.state,
                 self.network.ssid,
                 self.agent_manager.current,
+                interaction_mode=self.mode_manager.mode.value,
+                has_internet=self.network.has_internet(),
+                update_pending=self.updater.update_pending,
             )
             time.sleep(30)
 
@@ -280,7 +286,7 @@ class VoiceAssistant:
 
     def _start_ally_mode(self):
         """Build and start the AllyListener; wire it into AllyAgent."""
-        from core.ally_listener import AllyListener
+        from core.ally.listener import AllyListener
 
         listener = AllyListener(
             orchestrator=self.orchestrator,
@@ -353,7 +359,7 @@ class VoiceAssistant:
         self.bus.publish(BusEvent.MODE_CHANGE, payload=new_mode.value, source="main")
 
         self._tts_speak(self.mode_manager.label)
-        self.display.update_mode(self.agent_manager.current)
+        self.display.update_mode(self.agent_manager.current, interaction_mode=new_mode.value)
 
     # ------------------------------------------------------------------
     # Owner establishment callback (fired by AllyAgent)

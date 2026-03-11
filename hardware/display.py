@@ -44,8 +44,16 @@ class StatusDisplay:
     # Public interface
     # ------------------------------------------------------------------
 
+    def wake(self):
+        """Called by machine button press — turn on for 15 s (or reset timer if already on)."""
+        with self._lock:
+            if self._on:
+                self._reset_timeout()
+            else:
+                self._turn_on()
+
     def toggle(self):
-        """Called by machine button press — flip screen on/off."""
+        """Flip screen on/off programmatically (not used by buttons)."""
         with self._lock:
             if self._on:
                 self._turn_off()
@@ -70,7 +78,10 @@ class StatusDisplay:
         voltage: float,
         net_state: str,
         ssid: str,
-        mode: str,
+        agent: str,
+        interaction_mode: str = "",
+        has_internet: bool = False,
+        update_pending: bool = False,
         status_text: str = "Ready",
     ):
         """
@@ -82,7 +93,10 @@ class StatusDisplay:
             "voltage": voltage,
             "net_state": net_state,
             "ssid": ssid,
-            "mode": mode,
+            "agent": agent,
+            "interaction_mode": interaction_mode,
+            "has_internet": has_internet,
+            "update_pending": update_pending,
             "status_text": status_text,
         }
         with self._lock:
@@ -91,10 +105,12 @@ class StatusDisplay:
                 if self._page == "stats":
                     self._render_stats()
 
-    def update_mode(self, mode: str):
-        """Partial update: change the agent mode field only."""
+    def update_mode(self, agent: str, interaction_mode: str = None):
+        """Partial update: change the active agent (and optionally the interaction mode)."""
         if self._last:
-            self._last["mode"] = mode
+            self._last["agent"] = agent
+            if interaction_mode is not None:
+                self._last["interaction_mode"] = interaction_mode
             with self._lock:
                 if self._on and self._page == "stats":
                     self._render_stats()
@@ -182,16 +198,28 @@ class StatusDisplay:
         volt = d.get("voltage", "--")
         net = d.get("net_state", "")
         ssid = d.get("ssid", "")
-        mode = d.get("mode", "")
-        status = d.get("status_text", "Ready")
+        agent = d.get("agent", "")
+        imode = d.get("interaction_mode", "").upper()
+        has_internet = d.get("has_internet", False)
+        update_pending = d.get("update_pending", False)
 
-        draw.text((0, 0), f"Bat: {bat}% {volt}V", font=self.font, fill=255)
-        draw.text((0, 12), f"Net: {net} {ssid}", font=self.font, fill=255)
-        draw.text((0, 24), f"Mode: {mode.upper()}", font=self.big_font, fill=255)
-        draw.text((0, 38), status, font=self.font, fill=255)
+        # Line 0: battery
+        draw.text((0, 0), f"Bat: {bat}%  {volt}V", font=self.font, fill=255)
+
+        # Line 1: network with internet indicator
+        net_indicator = "[+]" if has_internet else "[-]"
+        net_line = f"Net: {net}{net_indicator} {ssid}"
+        draw.text((0, 12), net_line, font=self.font, fill=255)
+
+        # Line 2: active agent (big font — the primary context indicator)
+        draw.text((0, 24), agent.upper(), font=self.big_font, fill=255)
+
+        # Line 3: interaction mode | status / update indicator
+        status_part = "Update!" if update_pending else "Ready"
+        mode_line = f"{imode}  {status_part}" if imode else status_part
+        draw.text((0, 38), mode_line, font=self.font, fill=255)
 
         if self._server_url:
-            # Show abbreviated server URL on the last line
             short = self._server_url.replace("http://", "")
             draw.text((0, 52), short, font=self.font, fill=255)
 

@@ -1,5 +1,5 @@
 from typing import Any, Optional
-from core.model_registry import ModelRegistry, ModelRole, ModelSpec, Backend
+from core.models.registry import ModelRegistry, ModelRole, ModelSpec, Backend
 
 
 def _build_instance(spec: ModelSpec) -> Any:
@@ -10,27 +10,30 @@ def _build_instance(spec: ModelSpec) -> Any:
     codebase works against stable interfaces rather than raw model objects.
     """
     if spec.role == ModelRole.STT:
-        from core.sst import STT
+        if spec.backend == Backend.HAILO:
+            from core.models.wrappers.hailo_stt import HailoSTT
+            return HailoSTT(spec)
+        from core.models.wrappers.sst import STT
         return STT(spec)
 
     if spec.role == ModelRole.TTS:
-        from core.tts import TTS
+        from core.models.wrappers.tts import TTS
         return TTS(spec)
 
     if spec.role == ModelRole.LLM:
-        from core.llm import LLM
+        from core.models.wrappers.llm import LLM
         return LLM(spec)
 
     if spec.role == ModelRole.WAKE:
-        from core.wake_detector import WakeDetector
+        from core.models.wrappers.wake_detector import WakeDetector
         return WakeDetector(spec)
 
     if spec.role == ModelRole.VAD:
-        from core.vad import VAD
+        from core.models.wrappers.vad import VAD
         return VAD(spec)
 
     if spec.role == ModelRole.SPEAKER:
-        from core.speaker_encoder import SpeakerEncoder
+        from core.models.wrappers.speaker_encoder import SpeakerEncoder
         return SpeakerEncoder(spec)
 
     raise ValueError(f"Unknown model role: {spec.role}")
@@ -91,7 +94,7 @@ class ModelOrchestrator:
         Already-loaded models are skipped. Missing registry specs are
         silently ignored so partial configs don't raise.
         """
-        from core.interaction_mode import InteractionMode
+        from core.modes.interaction_mode import InteractionMode
 
         roles: list[ModelRole] = []
         if mode in (InteractionMode.HOT_WORD, InteractionMode.ALLY):

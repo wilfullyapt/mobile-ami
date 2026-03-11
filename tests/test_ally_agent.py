@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from agents.ally_agent import AllyAgent
 from agents.tools.tool_registry import ToolRegistry
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ class TestAllyAgentServing:
 
 class TestShouldIntervene:
     def _make_utterance(self, text, speaker="Alice", is_owner=True, seconds_ago=10.0):
-        from core.ally_listener import AmbientUtterance
+        from core.ally.listener import AmbientUtterance
         from datetime import datetime, timezone, timedelta
         utt = MagicMock(spec=AmbientUtterance)
         utt.speaker = speaker

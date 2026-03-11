@@ -1,7 +1,7 @@
 import numpy as np
 import openwakeword
 
-from core.model_registry import ModelSpec
+from core.models.registry import ModelSpec
 
 
 class WakeDetector:

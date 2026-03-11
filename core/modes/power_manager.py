@@ -29,7 +29,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from core.interaction_mode import InteractionMode
+from core.modes.interaction_mode import InteractionMode
 
 logger = logging.getLogger(__name__)
 

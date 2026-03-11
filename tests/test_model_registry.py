@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock
-from core.model_registry import (
+from core.models.registry import (
     Backend,
     ModelRegistry,
     ModelRole,

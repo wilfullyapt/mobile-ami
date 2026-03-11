@@ -19,7 +19,7 @@ import logging
 from typing import Optional
 
 from agents.base_agent import BaseAgent
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,13 @@ class KidsStoryAgent(BaseAgent):
     def __init__(self, orchestrator, tool_registry, paths=None):
         super().__init__(orchestrator, tool_registry, paths)
         self._story_messages: list[dict] = []
+
+    def on_entry(self, context=None) -> None:
+        if context is not None:
+            context.set_flag("active_agent", "kids_story")
+
+    def on_exit(self, context=None) -> None:
+        self._story_messages = []
 
     def process(self, text: str, speaker: Optional[str] = None, context=None) -> str:
         llm = self._orchestrator.get(ModelRole.LLM)

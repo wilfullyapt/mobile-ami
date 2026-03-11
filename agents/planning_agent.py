@@ -13,7 +13,7 @@ import logging
 from typing import TYPE_CHECKING, Optional
 
 from agents.base_agent import BaseAgent
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 if TYPE_CHECKING:
     from core.agent_context import AgentContext

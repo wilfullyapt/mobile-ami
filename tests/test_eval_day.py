@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone, timedelta
 from unittest.mock import MagicMock, patch
 from core.eval_day import EvalDay
 from core.ami_paths import AmiPaths
-from core.soul import SoulManager
+from core.ally.soul import SoulManager
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def _make_llm(response="- Alice talked about work.\n- She plans to exercise."):
 
 
 def _make_orchestrator(llm=None):
-    from core.model_registry import ModelRole
+    from core.models.registry import ModelRole
     orch = MagicMock()
     _llm = llm or _make_llm()
     orch.get.return_value = _llm

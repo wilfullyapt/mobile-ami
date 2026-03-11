@@ -93,8 +93,8 @@ def cmd_models_pull(args, paths: AmiPaths) -> None:
     with open("config.yaml") as f:
         config = yaml.safe_load(f)
 
-    from core.model_registry import ModelRegistry
-    from core.model_orchestrator import ModelOrchestrator
+    from core.models.registry import ModelRegistry
+    from core.models.orchestrator import ModelOrchestrator
 
     registry = ModelRegistry(config["models"], paths)
     orchestrator = ModelOrchestrator(registry)
@@ -115,7 +115,7 @@ def cmd_models_list(args, paths: AmiPaths) -> None:
     with open("config.yaml") as f:
         config = yaml.safe_load(f)
 
-    from core.model_registry import ModelRegistry
+    from core.models.registry import ModelRegistry
 
     registry = ModelRegistry(config["models"], paths)
     print(f"{'Role':<8} {'Name':<30} {'Backend':<8} {'Path'}")

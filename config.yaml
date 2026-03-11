@@ -6,6 +6,10 @@ models:
     path: null                           # -> ~/.amini/models/stt/ (download_root)
     version: tiny
     eager: false
+    # To activate Hailo-10H acceleration for STT, replace the above with:
+    # backend: hailo
+    # path: hailo/whisper_tiny.hef       # -> ~/.amini/models/hailo/whisper_tiny.hef
+    # See core/hailo_stt.py for conversion instructions.
   tts:
     name: en_US-lessac-medium
     backend: cpu
@@ -55,15 +59,14 @@ device:
   hotspot_ssid: "AminiAI"
   hotspot_password: "amini123"
   wifi_rollover_timeout_sec: 20    # seconds to wait for WiFi before falling back to hotspot
+  button_pins:
+    power: 17
+    action: 27
+    interaction: 22
 
 device_server:
   enabled: true
   port: 5000
-
-button_pins:
-  power: 17
-  action: 27
-  interaction: 22
 
 default_agent: "qa"
 

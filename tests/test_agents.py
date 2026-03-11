@@ -7,7 +7,7 @@ from agents.qa_agent import QAAgent
 from agents.block_timer_agent import BlockTimerAgent
 from agents.tools.tool_registry import ToolRegistry
 from agents.tools.base_tool import BaseTool, ToolParam
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 
 # ---------------------------------------------------------------------------

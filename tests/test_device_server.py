@@ -32,7 +32,7 @@ def _make_va(agents=None):
 
 def _make_server(va=None):
     from core.server.job_manager import JobManager
-    from core.device_server import DeviceServer
+    from core.server.device_server import DeviceServer
     va = va or _make_va()
     installer = MagicMock()
     conv_logger = MagicMock()

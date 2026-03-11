@@ -15,7 +15,7 @@ from agents.base_sub_agent import BaseSubAgent
 from agents.tools.base_tool import BaseTool, ToolParam
 
 if TYPE_CHECKING:
-    from core.model_orchestrator import ModelOrchestrator
+    from core.models.orchestrator import ModelOrchestrator
     from core.ami_paths import AmiPaths
     from core.agent_context import AgentContext
 
@@ -34,7 +34,7 @@ class _SummarizeConversationTool(BaseTool):
     def execute(self) -> str:
         if self._context is None:
             return "No conversation context available."
-        from core.model_registry import ModelRole
+        from core.models.registry import ModelRole
         history = self._context.recent_history(20)
         if not history:
             return "No conversation history to summarise."

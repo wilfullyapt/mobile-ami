@@ -1,6 +1,6 @@
 import subprocess
 
-from core.model_registry import ModelSpec
+from core.models.registry import ModelSpec
 
 
 class TTS:

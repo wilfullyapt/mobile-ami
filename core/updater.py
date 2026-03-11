@@ -48,6 +48,7 @@ class AutoUpdater:
         self.retries = cfg.get("health_check_retries", 3)
 
         self._previous_tag: str | None = None
+        self._update_pending: bool = False
 
         if self.enabled:
             self.thread = threading.Thread(target=self._loop, daemon=True)
@@ -56,6 +57,11 @@ class AutoUpdater:
     # ------------------------------------------------------------------
     # Public
     # ------------------------------------------------------------------
+
+    @property
+    def update_pending(self) -> bool:
+        """True when a newer release tag has been found but not yet applied."""
+        return self._update_pending
 
     def mark_as_healthy(self) -> None:
         """Called by VoiceAssistant on successful startup to signal the updater."""
@@ -97,9 +103,11 @@ class AutoUpdater:
                 return
 
         logger.info("AutoUpdater: update available %s → %s", current, latest)
+        self._update_pending = True
         self._previous_tag = current
         try:
             self._perform_update(latest)
+            self._update_pending = False
             if not self._health_check():
                 logger.warning("AutoUpdater: health check failed — rolling back")
                 self._rollback()

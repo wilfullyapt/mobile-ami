@@ -1,7 +1,7 @@
 import numpy as np
 from faster_whisper import WhisperModel
 
-from core.model_registry import ModelSpec, Backend, QuantType
+from core.models.registry import ModelSpec, Backend, QuantType
 
 
 class STT:

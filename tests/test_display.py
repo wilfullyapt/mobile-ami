@@ -88,7 +88,7 @@ def test_update_stores_last_values():
     with _patch_draw(disp):
         disp.update(75, 3.9, "hotspot", "AminiAI", "block_timer", "Listening")
     assert disp._last["battery_pct"] == 75
-    assert disp._last["mode"] == "block_timer"
+    assert disp._last["agent"] == "block_timer"
 
 
 def test_update_mode_updates_cached_mode():
@@ -96,7 +96,7 @@ def test_update_mode_updates_cached_mode():
     with _patch_draw(disp):
         disp.update(50, 4.1, "wifi", "Home", "qa")
         disp.update_mode("block_timer")
-    assert disp._last["mode"] == "block_timer"
+    assert disp._last["agent"] == "block_timer"
 
 
 def test_set_server_url_stores_url():

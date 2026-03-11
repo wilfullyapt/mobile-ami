@@ -15,7 +15,7 @@ from typing import Optional
 
 import numpy as np
 
-from core.model_registry import ModelSpec
+from core.models.registry import ModelSpec
 
 logger = logging.getLogger(__name__)
 

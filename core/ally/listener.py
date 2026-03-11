@@ -175,7 +175,7 @@ class AllyListener:
     # ------------------------------------------------------------------
 
     def _listen_loop(self) -> None:
-        from core.model_registry import ModelRole
+        from core.models.registry import ModelRole
 
         while self._running:
             try:
@@ -273,7 +273,7 @@ class AllyListener:
         if not self._chunk_utterances:
             return
 
-        from core.ambient_note import AmbientNote
+        from core.ally.ambient_note import AmbientNote
 
         now = datetime.now(timezone.utc)
         note = AmbientNote(

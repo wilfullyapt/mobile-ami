@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Optional
 
 from agents.base_agent import BaseAgent
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,13 @@ class MorningBriefingAgent(BaseAgent):
     Reads today's calendar events for the identified speaker and their unread
     messages, then uses the LLM to compose a natural spoken summary.
     """
+
+    def on_entry(self, context=None) -> None:
+        if context is not None:
+            context.set_flag("active_agent", "morning_briefing")
+
+    def on_exit(self, context=None) -> None:
+        pass
 
     def process(self, text: str, speaker: Optional[str] = None, context=None) -> str:
         llm = self._orchestrator.get(ModelRole.LLM)

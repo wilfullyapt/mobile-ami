@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import MagicMock, patch, call
 
-from core.model_registry import Backend, ModelRegistry, ModelRole, ModelSpec, QuantType
-from core.model_orchestrator import ModelOrchestrator, _build_instance
+from core.models.registry import Backend, ModelRegistry, ModelRole, ModelSpec, QuantType
+from core.models.orchestrator import ModelOrchestrator, _build_instance
 
 
 EAGER_CONFIG = {
@@ -79,11 +79,11 @@ def _make_mock_instance():
 class TestBuildInstance:
     def test_build_stt(self):
         spec = ModelSpec(ModelRole.STT, "tiny", Backend.CPU, QuantType.INT8, None, "tiny")
-        with patch("core.model_orchestrator.STT", create=True) as MockSTT:
+        with patch("core.models.orchestrator.STT", create=True) as MockSTT:
             # Patch the import inside _build_instance
-            with patch.dict("sys.modules", {"core.sst": MagicMock(STT=MockSTT)}):
+            with patch.dict("sys.modules", {"core.models.wrappers.sst": MagicMock(STT=MockSTT)}):
                 import importlib
-                import core.model_orchestrator as mo
+                import core.models.orchestrator as mo
                 importlib.reload(mo)
                 mo._build_instance(spec)
 
@@ -102,7 +102,7 @@ class TestModelOrchestratorLazyLoading:
     def test_get_loads_lazily(self):
         orch = ModelOrchestrator(self.registry)
         mock_inst = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst) as mock_build:
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst) as mock_build:
             result = orch.get(ModelRole.STT)
             mock_build.assert_called_once()
             assert result is mock_inst
@@ -110,7 +110,7 @@ class TestModelOrchestratorLazyLoading:
     def test_get_returns_cached_instance(self):
         orch = ModelOrchestrator(self.registry)
         mock_inst = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst) as mock_build:
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst) as mock_build:
             r1 = orch.get(ModelRole.STT)
             r2 = orch.get(ModelRole.STT)
             # _build_instance should only be called once
@@ -125,7 +125,7 @@ class TestModelOrchestratorPreload:
     def test_preload_eager_loads_only_eager_specs(self):
         orch = ModelOrchestrator(self.registry)
         mock_inst = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst) as mock_build:
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst) as mock_build:
             orch.preload_eager()
             # Only WAKE and VAD are marked eager=True
             assert mock_build.call_count == 2
@@ -135,7 +135,7 @@ class TestModelOrchestratorPreload:
     def test_after_preload_eager_no_reload_on_get(self):
         orch = ModelOrchestrator(self.registry)
         mock_inst = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst) as mock_build:
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst) as mock_build:
             orch.preload_eager()
             preload_count = mock_build.call_count
             orch.get(ModelRole.WAKE)
@@ -150,7 +150,7 @@ class TestModelOrchestratorSwap:
     def test_swap_unloads_and_updates_registry(self):
         orch = ModelOrchestrator(self.registry)
         mock_inst = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst):
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst):
             orch.get(ModelRole.STT)  # load first
         # Swap to a different model
         orch.swap(ModelRole.STT, "small")
@@ -163,17 +163,17 @@ class TestModelOrchestratorSwap:
         orch = ModelOrchestrator(self.registry)
         mock_v1 = _make_mock_instance()
         mock_v2 = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_v1):
+        with patch("core.models.orchestrator._build_instance", return_value=mock_v1):
             orch.get(ModelRole.STT)
         orch.swap(ModelRole.STT, "small")
-        with patch("core.model_orchestrator._build_instance", return_value=mock_v2):
+        with patch("core.models.orchestrator._build_instance", return_value=mock_v2):
             result = orch.get(ModelRole.STT)
         assert result is mock_v2
 
     def test_swap_calls_close_if_available(self):
         orch = ModelOrchestrator(self.registry)
         mock_inst = MagicMock(spec=["close"])
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst):
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst):
             orch.get(ModelRole.STT)
         orch.swap(ModelRole.STT, "small")
         mock_inst.close.assert_called_once()
@@ -181,7 +181,7 @@ class TestModelOrchestratorSwap:
     def test_swap_calls_shutdown_if_no_close(self):
         orch = ModelOrchestrator(self.registry)
         mock_inst = MagicMock(spec=["shutdown"])
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst):
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst):
             orch.get(ModelRole.STT)
         orch.swap(ModelRole.STT, "small")
         mock_inst.shutdown.assert_called_once()
@@ -194,7 +194,7 @@ class TestModelOrchestratorShutdown:
     def test_shutdown_unloads_all(self):
         orch = ModelOrchestrator(self.registry)
         mock_inst = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst):
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst):
             orch.get(ModelRole.STT)
             orch.get(ModelRole.LLM)
         orch.shutdown()
@@ -232,7 +232,7 @@ class TestHailoSlotEnforcement:
         registry = ModelRegistry(cfg)
         orch = ModelOrchestrator(registry)
         mock_inst = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst):
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst):
             orch.get(ModelRole.STT)  # succeeds, takes Hailo slot
             with pytest.raises(RuntimeError, match="Hailo"):
                 orch.get(ModelRole.TTS)  # should fail
@@ -259,7 +259,7 @@ class TestHailoSlotEnforcement:
         registry = ModelRegistry(cfg)
         orch = ModelOrchestrator(registry)
         mock_inst = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst):
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst):
             orch.get(ModelRole.STT)
             orch.swap(ModelRole.STT, "whisper-small", "/opt/hailo/whisper-small.hef")
             assert not orch._hailo_slot_taken
@@ -267,6 +267,6 @@ class TestHailoSlotEnforcement:
     def test_cpu_model_loads_alongside_hailo(self):
         orch = ModelOrchestrator(self.registry)
         mock_inst = _make_mock_instance()
-        with patch("core.model_orchestrator._build_instance", return_value=mock_inst):
+        with patch("core.models.orchestrator._build_instance", return_value=mock_inst):
             orch.get(ModelRole.STT)  # hailo
             orch.get(ModelRole.LLM)  # cpu — should not conflict

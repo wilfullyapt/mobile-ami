@@ -9,7 +9,7 @@ import wave
 import numpy as np
 import pytest
 
-from core.ally_listener import AllyListener, AmbientUtterance
+from core.ally.listener import AllyListener, AmbientUtterance
 
 
 # ---------------------------------------------------------------------------

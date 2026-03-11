@@ -19,7 +19,7 @@ from agents.kids_story_agent import KidsStoryAgent
 from agents.morning_briefing_agent import MorningBriefingAgent
 from agents.family_intercom_agent import FamilyIntercomAgent
 from core.ami_paths import AmiPaths
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 
 # ---------------------------------------------------------------------------
@@ -418,7 +418,7 @@ class TestPipelinePassesSpeaker:
 
     def test_process_called_with_speaker(self):
         from core.pipeline import VoicePipeline, PipelineContext
-        from core.model_registry import ModelRole
+        from core.models.registry import ModelRole
         import numpy as np
 
         mock_stt = MagicMock()

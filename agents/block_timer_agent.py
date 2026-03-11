@@ -3,7 +3,7 @@ from typing import Optional
 
 from agents.base_agent import BaseAgent
 from agents.tools.timer_tool import TimerTool
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,13 @@ class BlockTimerAgent(BaseAgent):
     execution to TimerTool. The LLM handles phrase parsing (e.g. "start a
     half-hour block") so the agent doesn't need hand-written regex.
     """
+
+    def on_entry(self, context=None) -> None:
+        if context is not None:
+            context.set_flag("active_agent", "block_timer")
+
+    def on_exit(self, context=None) -> None:
+        pass
 
     def get_tools(self):
         tts = self._orchestrator.get(ModelRole.TTS)

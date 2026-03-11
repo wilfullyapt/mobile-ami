@@ -28,9 +28,9 @@ def _make_buttons(display=None, network=None, core=None):
     return DeviceButtons(config, display, network, core), display, network, core
 
 
-def test_machine_button_press_calls_display_toggle():
+def test_machine_button_press_calls_display_wake():
     db, display, _, _ = _make_buttons()
-    assert db.machine_btn.when_pressed is display.toggle
+    assert db.machine_btn.when_pressed is display.wake
 
 
 def test_machine_button_hold_calls_graceful_shutdown():

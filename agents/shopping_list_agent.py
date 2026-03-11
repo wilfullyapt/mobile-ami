@@ -15,7 +15,7 @@ from typing import Optional
 
 from agents.base_agent import BaseAgent
 from agents.tools.shopping_tool import ShoppingAddTool, ShoppingQueryTool, ShoppingDoneTool
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,13 @@ class ShoppingListAgent(BaseAgent):
 
     Exposes three tools: shopping_add, shopping_query, shopping_done.
     """
+
+    def on_entry(self, context=None) -> None:
+        if context is not None:
+            context.set_flag("active_agent", "shopping_list")
+
+    def on_exit(self, context=None) -> None:
+        pass
 
     def get_tools(self):
         if self._paths is None:

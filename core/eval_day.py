@@ -25,7 +25,7 @@ from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.ami_paths import AmiPaths
-    from core.soul import SoulManager
+    from core.ally.soul import SoulManager
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +234,7 @@ class EvalDay:
 
     def _summarize(self, conversations: list[dict]) -> Optional[str]:
         try:
-            from core.model_registry import ModelRole
+            from core.models.registry import ModelRole
             llm = self._orch.get(ModelRole.LLM)
         except Exception as exc:
             logger.warning("EvalDay: LLM unavailable: %s", exc)

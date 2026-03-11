@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 from agents.ally_agent import AllyAgent
-from core.ally_listener import AmbientUtterance
-from core.ambient_note import AmbientNote
+from core.ally.listener import AmbientUtterance
+from core.ally.ambient_note import AmbientNote
 
 
 # ---------------------------------------------------------------------------

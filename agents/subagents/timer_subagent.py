@@ -18,7 +18,7 @@ from agents.base_sub_agent import BaseSubAgent
 from agents.tools.base_tool import BaseTool, ToolParam
 
 if TYPE_CHECKING:
-    from core.model_orchestrator import ModelOrchestrator
+    from core.models.orchestrator import ModelOrchestrator
     from core.ami_paths import AmiPaths
 
 logger = logging.getLogger(__name__)

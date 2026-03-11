@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 
 from agents.base_agent import BaseAgent
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
 

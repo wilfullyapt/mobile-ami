@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from core.ambient_note import AmbientNote
-from core.ally_listener import AmbientUtterance
+from core.ally.ambient_note import AmbientNote
+from core.ally.listener import AmbientUtterance
 
 
 def _make_utterance(speaker, is_owner, text, seconds_ago=60, duration=1.0):
@@ -61,7 +61,7 @@ class TestFormattedText:
             timestamp=ts,
         )
         note = _make_note([u])
-        with patch("core.ambient_note.datetime") as mock_dt:
+        with patch("core.ally.ambient_note.datetime") as mock_dt:
             mock_dt.now.return_value = fixed_now
             text = note.formatted_text()
         assert "420s ago" in text

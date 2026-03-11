@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from core.model_orchestrator import ModelOrchestrator
+    from core.models.orchestrator import ModelOrchestrator
     from agents.tools.tool_registry import ToolRegistry
     from agents.tools.base_tool import BaseTool
     from core.ami_paths import AmiPaths

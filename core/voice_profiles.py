@@ -29,7 +29,7 @@ from typing import Optional, TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from core.speaker_encoder import SpeakerEncoder
+    from core.models.wrappers.speaker_encoder import SpeakerEncoder
 
 logger = logging.getLogger(__name__)
 

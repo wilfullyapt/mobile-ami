@@ -4,7 +4,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
 

@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 from agents.tools.base_tool import BaseTool, ToolParam
 
 if TYPE_CHECKING:
-    from core.model_orchestrator import ModelOrchestrator
-    from core.soul import SoulManager
+    from core.models.orchestrator import ModelOrchestrator
+    from core.ally.soul import SoulManager
 
 logger = logging.getLogger(__name__)
 

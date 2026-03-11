@@ -2,7 +2,7 @@
 
 import pytest
 from datetime import date
-from core.soul import SoulManager
+from core.ally.soul import SoulManager
 from core.ami_paths import AmiPaths
 
 

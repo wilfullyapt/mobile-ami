@@ -19,7 +19,7 @@ from typing import Optional
 
 from agents.base_agent import BaseAgent
 from agents.tools.message_tool import MessageLeaveTool, MessageReadTool
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,13 @@ class FamilyIntercomAgent(BaseAgent):
     the user's utterance. If a speaker is identified, the sender name is
     automatically available so messages are attributed correctly.
     """
+
+    def on_entry(self, context=None) -> None:
+        if context is not None:
+            context.set_flag("active_agent", "family_intercom")
+
+    def on_exit(self, context=None) -> None:
+        pass
 
     def get_tools(self):
         if self._paths is None:

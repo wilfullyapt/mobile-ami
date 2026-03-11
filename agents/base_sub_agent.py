@@ -28,7 +28,7 @@ from agents.tools.base_tool import BaseTool
 from agents.tools.tool_registry import ToolRegistry
 
 if TYPE_CHECKING:
-    from core.model_orchestrator import ModelOrchestrator
+    from core.models.orchestrator import ModelOrchestrator
     from core.ami_paths import AmiPaths
 
 

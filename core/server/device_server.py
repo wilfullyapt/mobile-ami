@@ -19,7 +19,7 @@ from flask import Flask, render_template
 logger = logging.getLogger(__name__)
 
 # Paths to the companion static/template directories
-_SERVER_DIR = Path(__file__).parent / "server"
+_SERVER_DIR = Path(__file__).parent  # already in core/server/
 _TEMPLATE_DIR = _SERVER_DIR / "templates"
 _STATIC_DIR = _SERVER_DIR / "static"
 

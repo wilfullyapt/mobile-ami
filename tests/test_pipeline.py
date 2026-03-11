@@ -5,7 +5,7 @@ import numpy as np
 from unittest.mock import MagicMock, call, patch
 
 from core.pipeline import PipelineContext, VoicePipeline
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 
 def _make_orchestrator(stt_text="hello world"):

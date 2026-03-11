@@ -41,7 +41,7 @@ from typing import Callable, Optional
 import numpy as np
 
 from agents.base_agent import BaseAgent
-from core.model_registry import ModelRole
+from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +176,10 @@ class AllyAgent(BaseAgent):
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
+
+    def on_entry(self, context=None) -> None:
+        if context is not None:
+            context.set_flag("active_agent", "ally")
 
     def on_exit(self, context=None) -> None:
         """Reset voice ID state when leaving ally mode or switching agents."""
@@ -334,7 +338,7 @@ class AllyAgent(BaseAgent):
             if notes_dir.exists():
                 for note_file in sorted(notes_dir.glob(f"{today_prefix}*.json")):
                     try:
-                        from core.ambient_note import AmbientNote
+                        from core.ally.ambient_note import AmbientNote
                         note = AmbientNote.from_json(note_file.read_text())
                         notes_texts.append(note.formatted_text())
                     except Exception as exc:

@@ -4,7 +4,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Optional
 
-from core.model_orchestrator import ModelOrchestrator
+from core.models.orchestrator import ModelOrchestrator
 from agents.tools.tool_registry import ToolRegistry
 
 if TYPE_CHECKING:

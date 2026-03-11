@@ -1,7 +1,7 @@
 """Unit tests for core/interaction_mode.py"""
 
 import pytest
-from core.interaction_mode import InteractionMode, ModeManager
+from core.modes.interaction_mode import InteractionMode, ModeManager
 from core.ami_paths import AmiPaths
 
 

@@ -3,9 +3,9 @@
 import pytest
 from unittest.mock import MagicMock, call, patch
 
-from core.interaction_mode import InteractionMode
-from core.model_registry import ModelRole
-from core.model_orchestrator import ModelOrchestrator
+from core.modes.interaction_mode import InteractionMode
+from core.models.registry import ModelRole
+from core.models.orchestrator import ModelOrchestrator
 
 
 # ---------------------------------------------------------------------------
