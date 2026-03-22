@@ -14,9 +14,11 @@ jobs:
           fetch-depth: 0   # required for hatch-vcs to read git tags
 
       - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
 
       - name: Install dev dependencies
-        run: uv pip install -e ".[dev]" --system
+        run: uv sync --extra dev
 
       - name: Run tests
         run: uv run pytest tests/ -q --tb=short
