@@ -31,6 +31,7 @@ from core.modes.power_manager import PowerManager
 from core.process_bus import BusEvent, ProcessBus
 from core.server.job_manager import JobManager
 from core.ally.soul import SoulManager
+from core.ally.system_prompt_manager import SystemPromptManager
 from core.updater import AutoUpdater
 from core.voice_profiles import VoiceProfileManager
 
@@ -75,6 +76,8 @@ class VoiceAssistant:
         # ── Owner + soul ───────────────────────────────────────────────
         self.owner_manager = OwnerManager(self.paths)
         self.soul_manager = SoulManager(self.paths)
+        self.system_prompt_manager = SystemPromptManager(self.paths, _PROJECT_ROOT)
+        self.system_prompt_manager.ensure()
 
         # Seed a soul.md if the owner is already known but the file doesn't exist
         if self.owner_manager.has_owner and not self.soul_manager.exists():
@@ -191,6 +194,7 @@ class VoiceAssistant:
             ally_listener=None,  # wired in when ally mode starts
             voice_profiles=self.voice_profiles,
             ally_config=ally_cfg,
+            system_prompt_manager=self.system_prompt_manager,
         )
         self.agent_manager.inject("ally", self.ally_agent)
 

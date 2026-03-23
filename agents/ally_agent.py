@@ -1,35 +1,27 @@
 """
-AllyAgent — the device's autonomous owner companion.
+AllyAgent — the device's built-in autonomous owner companion.
 
-The Ally is architecturally distinct from all other agents:
+Extends BaseAllyAgent and implements all two loops and event hooks:
 
-1. It always reads SOUL.md before generating a response, giving it a stable
-   identity, memory of its purpose, and awareness of its owner.
+    interaction_loop   — SEARCHING / SERVING conversation with the owner
+    analyzer_loop      — ambient notes → SPEAK/SILENT decision with tool calls
+    on_owner_spoken    — record owner presence timestamp
+    on_stranger_detected — queue unknown voice clip for identification replay
+    on_daily_reflect   — run tool loop to update soul/memory
 
-2. It operates in one of two states depending on whether an owner has been
-   established:
+State machine: SEARCHING (no owner) → SERVING (owner established).
+Voice ID pipeline: unknown clip → replay to owner → ask for name → enroll.
 
-   SEARCHING state (no owner):
-     The ally introduces itself warmly and tries to discover who it belongs to.
-     When someone claims ownership ("I am Jake, this is my device"), it fires
-     the on_owner_established callback so main.py can persist the bond, create
-     SOUL.md, and enroll the speaker's voice profile.
+Prompt architecture (layered):
+    ally_system.md  (device-level persona, rarely changes)
+         ↓  {{SOUL}}
+    soul.md         (owner-specific identity, evolves over time)
+         ↓  + mode section (SEARCHING / SERVING / analyzer context)
+    Final system prompt injected into LLM
 
-   SERVING state (owner known):
-     The ally knows its owner by name and voice. It tracks when the owner
-     last spoke, maintains ambient context from AllyListener, and proactively
-     promotes the owner — offering encouragement, insight, or help.
-
-3. Two invocation paths:
-
-   process(text, speaker)         — explicit user interaction via pipeline
-   should_intervene(threshold)    — autonomous decision: should I speak now?
-
-Owner establishment flow:
-  User says → "I am Alice, this device is mine"
-  AllyAgent detects → fires on_owner_established("Alice")
-  main.py → OwnerManager.establish("Alice") + SoulManager.create_for_owner(...)
-           + VoiceProfileManager.enroll("Alice", audio, encoder)
+The system prompt strings (_SEARCHING_MODE, _SERVING_MODE, etc.) define the
+mode-specific sections appended via BaseAllyAgent.build_system_prompt().
+They no longer embed the soul directly — that is handled by the base class.
 """
 
 import logging
@@ -40,7 +32,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
-from agents.base_agent import BaseAgent
+from agents.base_ally_agent import BaseAllyAgent, AllyContext
 from core.models.registry import ModelRole
 
 logger = logging.getLogger(__name__)
@@ -58,14 +50,12 @@ _OWNER_CLAIM_PATTERNS = [
 ]
 
 # ---------------------------------------------------------------------------
-# System prompt templates
+# Mode-specific prompt sections
+# (soul + base persona are merged by BaseAllyAgent.build_system_prompt)
 # ---------------------------------------------------------------------------
 
-_SEARCHING_SYSTEM = """\
-{soul}
-
----
-You are Ami in SEARCHING mode. You do not yet know who your owner is.
+_SEARCHING_MODE = """\
+You are in SEARCHING mode. You do not yet know who your owner is.
 Your mission right now is to find your person and establish the bond.
 
 Guidelines:
@@ -76,11 +66,8 @@ Guidelines:
 - Keep every response under 40 words. Be inviting, never pushy.
 """
 
-_SERVING_SYSTEM = """\
-{soul}
-
----
-You are Ami in SERVING mode. Your owner is {owner_name}.
+_SERVING_MODE = """\
+You are in SERVING mode. Your owner is {owner_name}.
 {owner_context}
 
 Recent ambient context (what you've been hearing):
@@ -92,11 +79,8 @@ Guidelines:
 - Be warm, concise, and genuinely helpful. Under 60 words.
 """
 
-_INTERVENE_PROMPT = """\
-{soul}
-
----
-You are Ami. Your owner is {owner_name}.
+_INTERVENE_SECTION = """\
+Your owner is {owner_name}.
 {owner_context}
 
 You have been passively listening. Here is what you've heard recently:
@@ -114,11 +98,8 @@ Reply with EXACTLY one of these formats:
 Choose SILENT unless you have something genuinely useful to say.
 """
 
-_SEARCHING_INTERVENE_PROMPT = """\
-{soul}
-
----
-You are Ami in SEARCHING mode. You haven't found your owner yet.
+_SEARCHING_INTERVENE_SECTION = """\
+You are in SEARCHING mode. You haven't found your owner yet.
 You heard this recently: {context_summary}
 
 Should you gently introduce yourself to try to find your owner?
@@ -130,12 +111,12 @@ Reply SPEAK: [message] or SILENT. Keep any message under 30 words.
 # AllyAgent
 # ---------------------------------------------------------------------------
 
-class AllyAgent(BaseAgent):
+class AllyAgent(BaseAllyAgent):
     """
-    The device's autonomous owner companion.
+    The device's built-in autonomous owner companion.
 
-    Constructed in main.py with extra dependencies injected after the
-    standard BaseAgent.__init__() via inject_ally_deps().
+    Constructed in main.py with all ally infrastructure injected at init.
+    Extend BaseAllyAgent directly if you are building a custom Ally variant.
     """
 
     def __init__(
@@ -149,16 +130,22 @@ class AllyAgent(BaseAgent):
         ally_listener=None,
         voice_profiles=None,
         ally_config: Optional[dict] = None,
+        system_prompt_manager=None,
     ):
-        super().__init__(orchestrator, tool_registry, paths)
-        self._soul = soul_manager
-        self._owner = owner_manager
-        self._on_owner_established = on_owner_established
-        self._listener = ally_listener  # Optional[AllyListener]
-        self._voice_profiles = voice_profiles
-        self._ally_config = ally_config or {}
+        super().__init__(
+            orchestrator=orchestrator,
+            tool_registry=tool_registry,
+            paths=paths,
+            soul_manager=soul_manager,
+            owner_manager=owner_manager,
+            on_owner_established=on_owner_established,
+            ally_listener=ally_listener,
+            voice_profiles=voice_profiles,
+            ally_config=ally_config,
+            system_prompt_manager=system_prompt_manager,
+        )
 
-        # Internal sub-agents (NOT in global ToolRegistry)
+        # Internal sub-agents (NOT in the global ToolRegistry)
         self._soul_sub = None
         self._memory_sub = None
         if soul_manager is not None:
@@ -186,15 +173,20 @@ class AllyAgent(BaseAgent):
         self._awaiting_voice_name = False
 
     # ------------------------------------------------------------------
-    # Standard agent interaction (called by pipeline)
+    # Two thought loops (required by BaseAllyAgent)
     # ------------------------------------------------------------------
 
-    def process(self, text: str, speaker: Optional[str] = None, context=None) -> str:
+    def interaction_loop(
+        self,
+        text: str,
+        speaker: Optional[str],
+        ctx: AllyContext,
+    ) -> str:
         """
-        Handle an explicit user interaction.
+        Handle an explicit user utterance in SEARCHING or SERVING mode.
 
-        If the device has no owner, checks whether the user is claiming
-        ownership and fires on_owner_established if so.
+        Runs the voice ID state machine, detects ownership claims, then
+        calls the LLM with the fully-merged layered system prompt.
         """
         # --- Voice ID state machine ---
         if self._awaiting_voice_name:
@@ -208,7 +200,9 @@ class AllyAgent(BaseAgent):
                     ):
                         try:
                             encoder = self._orchestrator.get(ModelRole.SPEAKER)
-                            self._voice_profiles.enroll(name, clip_audio, encoder, role="guest")
+                            self._voice_profiles.enroll(
+                                name, clip_audio, encoder, role="guest"
+                            )
                         except Exception as exc:
                             logger.warning("AllyAgent: voice enroll failed: %s", exc)
             self._awaiting_voice_name = False
@@ -221,13 +215,13 @@ class AllyAgent(BaseAgent):
         ):
             with self._voice_id_lock:
                 if self._pending_voice_id:
-                    clip_path, clip_audio = self._pending_voice_id[0]
+                    _clip_path, clip_audio = self._pending_voice_id[0]
                     self._play_audio_clip(clip_audio)
                     self._awaiting_voice_name = True
                     return "I heard someone I don't recognise. Who is this person?"
 
         # --- Ownership establishment ---
-        if not self._is_owner_established:
+        if not ctx.is_owner_established:
             claimed = self._extract_owner_claim(text, speaker)
             if claimed:
                 if self._on_owner_established:
@@ -238,46 +232,47 @@ class AllyAgent(BaseAgent):
                     "Can you tell me your purpose — what should I help you with most?"
                 )
 
-        # --- Record owner presence ---
-        if speaker and self._owner and speaker == self._owner.owner_name:
-            self._owner.record_seen(speaker)
-
-        soul = self._soul_text
+        # --- Build system prompt (layered: base + soul + mode section) ---
         llm = self._orchestrator.get(ModelRole.LLM)
 
-        if not self._is_owner_established:
-            system = _SEARCHING_SYSTEM.format(soul=soul)
+        if not ctx.is_owner_established:
+            system = self.build_system_prompt(ctx, mode=_SEARCHING_MODE)
         else:
-            system = _SERVING_SYSTEM.format(
-                soul=soul,
-                owner_name=self._owner.owner_name,
-                owner_context=self._owner_context_line,
-                context_summary=self._context_summary or "No recent ambient context.",
+            context_summary = (
+                self._format_utterances(ctx.ambient_utterances)
+                or "No recent ambient context."
             )
+            mode_section = _SERVING_MODE.format(
+                owner_name=ctx.owner_name,
+                owner_context=ctx.owner_context_line,
+                context_summary=context_summary,
+            )
+            system = self.build_system_prompt(ctx, mode=mode_section)
 
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": text},
-        ]
+        # Include recent conversation history for shared full context
+        messages: list[dict] = [{"role": "system", "content": system}]
+        if ctx.conversation_history:
+            messages.extend(ctx.conversation_history[-10:])
+        messages.append({"role": "user", "content": text})
+
         response = llm.chat(messages)
-        return response or self._fallback_response()
+        return response or self._fallback_response(ctx)
 
-    # ------------------------------------------------------------------
-    # Ally mode — interval_listen + daily_update
-    # ------------------------------------------------------------------
-
-    def interval_listen(self, notes: list, context=None) -> Optional[str]:
+    def analyzer_loop(
+        self,
+        notes: list,
+        ctx: AllyContext,
+    ) -> Optional[str]:
         """
-        Review the latest ambient notes and optionally speak.
+        Review accumulated ambient notes and decide whether to speak.
 
-        Called every check_interval_sec by the _on_ally_context_ready callback
-        in main.py.  Returns a spoken message string or None to stay silent.
+        Runs a tool-calling loop so the LLM can update soul/memory before
+        deciding SPEAK/SILENT. Returns the spoken message or None.
         """
         if not notes:
             return None
 
-        soul = self._soul_text
-        owner_name = self._owner.owner_name if self._owner else "your owner"
+        owner_name = ctx.owner_name or "your owner"
         duration_min = int(
             sum(
                 (n.chunk_end - n.chunk_start).total_seconds()
@@ -292,71 +287,58 @@ class AllyAgent(BaseAgent):
             if sub is not None
         ]
 
-        system = f"{soul}\n\n---\nYou are Ami, the device companion for {owner_name}."
-        user = (
-            f"You've been listening for the past {duration_min} minute(s). "
-            f"Here is what you heard:\n\n{notes_text}\n\n"
-            "Should you speak up? You may also update your memory or soul via tools. "
-            "Reply SPEAK:[message] or SILENT."
-        )
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ]
-        final_text = self._tool_loop(messages, internal_tools, max_rounds=5)
+        system = self.build_system_prompt(ctx)
 
-        # Queue unknown voices for identification on next owner interaction
-        if self._ally_config.get("replay_unknown_voices", True):
-            for note in notes:
-                for clip_path in note.unknown_clip_paths:
-                    clip_audio = self._load_clip_audio(clip_path)
-                    if clip_audio is not None:
-                        with self._voice_id_lock:
-                            self._pending_voice_id.append((clip_path, clip_audio))
+        # Include recent conversation history in the analyzer too
+        messages: list[dict] = [{"role": "system", "content": system}]
+        if ctx.conversation_history:
+            messages.extend(ctx.conversation_history[-6:])
+
+        messages.append({
+            "role": "user",
+            "content": (
+                f"You've been listening for the past {duration_min} minute(s). "
+                f"Here is what you heard:\n\n{notes_text}\n\n"
+                f"Owner: {owner_name}. {ctx.owner_context_line}\n\n"
+                "Should you speak up? You may also update your memory or soul via tools. "
+                "Reply SPEAK:[message] or SILENT."
+            ),
+        })
+
+        final_text = self._tool_loop(messages, internal_tools, max_rounds=5)
 
         if final_text and final_text.strip().upper().startswith("SPEAK:"):
             msg = final_text.strip()[len("SPEAK:"):].strip()
-            logger.info("AllyAgent interval_listen: speaking: %s", msg[:60])
+            logger.info("AllyAgent analyzer_loop: speaking: %s", msg[:60])
             return msg
 
-        logger.debug("AllyAgent interval_listen: staying silent")
+        logger.debug("AllyAgent analyzer_loop: staying silent")
         return None
 
-    def daily_update(self, context=None) -> None:
-        """
-        Called once per day (via EvalDay) to review notes and update soul/memory.
-        """
-        from datetime import date
-        import json
+    # ------------------------------------------------------------------
+    # Event hooks
+    # ------------------------------------------------------------------
 
-        today_str = date.today().isoformat()
-        today_prefix = today_str.replace("-", "")
+    def on_owner_spoken(self, utterance, ctx: AllyContext) -> None:
+        """Record owner presence timestamp."""
+        if self._owner:
+            self._owner.record_seen(utterance.speaker)
 
-        notes_texts: list[str] = []
-        if self._paths is not None:
-            notes_dir = self._paths.ally_notes_dir
-            if notes_dir.exists():
-                for note_file in sorted(notes_dir.glob(f"{today_prefix}*.json")):
-                    try:
-                        from core.ally.ambient_note import AmbientNote
-                        note = AmbientNote.from_json(note_file.read_text())
-                        notes_texts.append(note.formatted_text())
-                    except Exception as exc:
-                        logger.warning("AllyAgent daily_update: bad note %s: %s", note_file, exc)
+    def on_stranger_detected(self, clip_path: str, ctx: AllyContext) -> None:
+        """Queue unknown voice clip for identification replay on next owner interaction."""
+        if self._ally_config.get("replay_unknown_voices", True):
+            clip_audio = self._load_clip_audio(clip_path)
+            if clip_audio is not None:
+                with self._voice_id_lock:
+                    self._pending_voice_id.append((clip_path, clip_audio))
 
-        mem_text = ""
-        if self._paths is not None:
-            mem_file = self._paths.memory_dir / f"{today_str}.json"
-            if mem_file.exists():
-                try:
-                    mem_data = json.loads(mem_file.read_text())
-                    mem_text = mem_data.get("summary", "")
-                except Exception:
-                    pass
-
-        owner_name = self._owner.owner_name if self._owner else "your owner"
-        soul = self._soul_text
-        notes_block = "\n\n---\n\n".join(notes_texts) or "(no ambient notes today)"
+    def on_daily_reflect(self, notes: list, summary: str, ctx: AllyContext) -> None:
+        """Run tool loop for soul/memory updates during daily reflection."""
+        owner_name = ctx.owner_name or "your owner"
+        notes_block = (
+            "\n\n---\n\n".join(n.formatted_text() for n in notes)
+            or "(no ambient notes today)"
+        )
 
         internal_tools = [
             sub.to_llm_schema()
@@ -364,22 +346,24 @@ class AllyAgent(BaseAgent):
             if sub is not None
         ]
 
-        system = f"{soul}\n\n---\nYou are Ami. Today is {today_str}."
-        user = (
-            f"Review your day as {owner_name}'s ally.\n\n"
-            f"Ambient notes:\n{notes_block}\n\n"
-            f"Conversation summary:\n{mem_text or '(none)'}\n\n"
-            "Update your soul and memories via tools as appropriate."
-        )
+        system = self.build_system_prompt(ctx)
         messages = [
             {"role": "system", "content": system},
-            {"role": "user", "content": user},
+            {
+                "role": "user",
+                "content": (
+                    f"Review your day as {owner_name}'s ally.\n\n"
+                    f"Ambient notes:\n{notes_block}\n\n"
+                    f"Conversation summary:\n{summary or '(none)'}\n\n"
+                    "Update your soul and memories via tools as appropriate."
+                ),
+            },
         ]
         self._tool_loop(messages, internal_tools, max_rounds=8)
-        logger.info("AllyAgent daily_update: complete for %s", today_str)
+        logger.info("AllyAgent on_daily_reflect: complete")
 
     # ------------------------------------------------------------------
-    # Autonomous intervention decision
+    # Autonomous intervention decision (kept for backward compatibility)
     # ------------------------------------------------------------------
 
     def should_intervene(
@@ -397,20 +381,18 @@ class AllyAgent(BaseAgent):
         ``context_override`` allows tests/callers to inject a context list
         directly without an AllyListener being wired in.
         """
-        soul = self._soul_text
+        ctx = self._build_ally_context()
         llm = self._orchestrator.get(ModelRole.LLM)
 
-        context = context_override if context_override is not None else self._listener_context
-        summary = self._format_context(context)
+        utterances = context_override if context_override is not None else ctx.ambient_utterances
+        summary = self._format_utterances(utterances)
 
-        if not self._is_owner_established:
+        if not ctx.is_owner_established:
             if not summary:
-                return False, None  # Nothing heard; don't initiate in silence
-            prompt = _SEARCHING_INTERVENE_PROMPT.format(
-                soul=soul,
-                context_summary=summary,
-            )
-            messages = [{"role": "user", "content": prompt}]
+                return False, None
+            section = _SEARCHING_INTERVENE_SECTION.format(context_summary=summary)
+            system = self.build_system_prompt(ctx, intervene=section)
+            messages = [{"role": "user", "content": system}]
             response = llm.chat(messages)
             if response and response.strip().upper().startswith("SPEAK:"):
                 msg = response.strip()[len("SPEAK:"):].strip()
@@ -418,13 +400,13 @@ class AllyAgent(BaseAgent):
                 return True, msg
             return False, None
 
-        prompt = _INTERVENE_PROMPT.format(
-            soul=soul,
-            owner_name=self._owner.owner_name,
-            owner_context=self._owner_context_line,
+        section = _INTERVENE_SECTION.format(
+            owner_name=ctx.owner_name,
+            owner_context=ctx.owner_context_line,
             context_summary=summary or "Nothing heard recently.",
         )
-        messages = [{"role": "user", "content": prompt}]
+        system = self.build_system_prompt(ctx, intervene=section)
+        messages = [{"role": "user", "content": system}]
         response = llm.chat(messages)
 
         if response and response.strip().upper().startswith("SPEAK:"):
@@ -436,84 +418,11 @@ class AllyAgent(BaseAgent):
         return False, None
 
     # ------------------------------------------------------------------
-    # Helpers / properties
-    # ------------------------------------------------------------------
-
-    @property
-    def _is_owner_established(self) -> bool:
-        return self._owner is not None and self._owner.has_owner
-
-    @property
-    def _soul_text(self) -> str:
-        if self._soul:
-            return self._soul.read(has_owner=self._is_owner_established)
-        return ""
-
-    @property
-    def _owner_context_line(self) -> str:
-        if not self._owner:
-            return ""
-        secs = self._owner.seconds_since_owner_seen()
-        if secs is None:
-            return f"You have not yet heard {self._owner.owner_name} speak since startup."
-        if secs < 60:
-            return f"{self._owner.owner_name} spoke less than a minute ago."
-        if secs < 3600:
-            return f"{self._owner.owner_name} was last heard {int(secs / 60)} minute(s) ago."
-        return f"{self._owner.owner_name} was last heard {int(secs / 3600)} hour(s) ago."
-
-    @property
-    def _context_summary(self) -> str:
-        return self._format_context(self._listener_context)
-
-    @property
-    def _listener_context(self) -> list:
-        if self._listener is None:
-            return []
-        return self._listener.get_recent_context()
-
-    def _format_context(self, context: list) -> str:
-        if not context:
-            return ""
-        lines = []
-        for u in context[-12:]:  # last 12 utterances max
-            ago = int(u.seconds_ago())
-            who = u.speaker or "unknown"
-            owner_tag = " [owner]" if u.is_owner else ""
-            lines.append(f"[{ago}s ago, {who}{owner_tag}]: {u.text}")
-        return "\n".join(lines)
-
-    def _extract_owner_claim(self, text: str, speaker: Optional[str]) -> Optional[str]:
-        """
-        Detect an ownership claim in text. Returns the claimed display name
-        or None. Prefers the voice-identified speaker name for reliability.
-        """
-        lowered = text.lower()
-        for pattern in _OWNER_CLAIM_PATTERNS:
-            m = re.search(pattern, lowered)
-            if m:
-                # Voice-identified speaker is the most reliable name source
-                if speaker:
-                    return speaker
-                # Try to extract name from the match groups
-                for group in m.groups():
-                    if group and group not in {
-                        "device", "assistant", "you", "this", "me", "the"
-                    }:
-                        return group.capitalize()
-                return "Owner"
-        return None
-
-    # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _tool_loop(self, messages: list, tools: list, max_rounds: int) -> str:
-        """
-        Run a tool-calling loop with the LLM.
-
-        Returns the final text response after all tool calls are resolved.
-        """
+        """Run a tool-calling loop with the LLM. Returns the final text response."""
         llm = self._orchestrator.get(ModelRole.LLM)
         for _ in range(max_rounds):
             if tools:
@@ -523,7 +432,11 @@ class AllyAgent(BaseAgent):
                 calls = []
             if not calls:
                 return text or ""
-            messages.append({"role": "assistant", "content": text or "", "tool_calls": calls})
+            messages.append({
+                "role": "assistant",
+                "content": text or "",
+                "tool_calls": calls,
+            })
             for call in calls:
                 fn_name = call.get("function", {}).get("name", "")
                 fn_args = call.get("function", {}).get("arguments", {})
@@ -569,14 +482,25 @@ class AllyAgent(BaseAgent):
             logger.warning("AllyAgent: could not load clip %s: %s", path, exc)
             return None
 
+    def _extract_owner_claim(self, text: str, speaker: Optional[str]) -> Optional[str]:
+        """Detect an ownership claim in text. Returns the claimed name or None."""
+        lowered = text.lower()
+        for pattern in _OWNER_CLAIM_PATTERNS:
+            m = re.search(pattern, lowered)
+            if m:
+                if speaker:
+                    return speaker
+                for group in m.groups():
+                    if group and group not in {
+                        "device", "assistant", "you", "this", "me", "the"
+                    }:
+                        return group.capitalize()
+                return "Owner"
+        return None
+
     @staticmethod
     def _extract_name_from_reply(text: str) -> Optional[str]:
-        """
-        Look for a person's name in the user's reply.
-
-        Checks common phrasings like "it's Alice", "that's Bob", "name is Carol",
-        then falls back to the first capitalized standalone word.
-        """
+        """Extract a person's name from the user's reply to the voice ID prompt."""
         patterns = [
             r"\bit['\u2019]?s\s+([A-Z][a-z]+)\b",
             r"\bthat['\u2019]?s\s+([A-Z][a-z]+)\b",
@@ -588,7 +512,6 @@ class AllyAgent(BaseAgent):
             m = re.search(pat, text)
             if m:
                 return m.group(1)
-        # Fallback: first capitalized word that isn't a sentence starter
         words = text.split()
         for i, w in enumerate(words):
             clean = re.sub(r"[^A-Za-z]", "", w)
@@ -596,8 +519,8 @@ class AllyAgent(BaseAgent):
                 return clean
         return None
 
-    def _fallback_response(self) -> str:
-        if not self._is_owner_established:
+    def _fallback_response(self, ctx: AllyContext) -> str:
+        if not ctx.is_owner_established:
             return (
                 "Hello, I'm Ami. I'm looking for my owner. "
                 "Are you the person this device belongs to?"

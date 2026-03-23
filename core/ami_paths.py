@@ -101,6 +101,11 @@ class AmiPaths:
         return self._root / "soul.md"
 
     @property
+    def ally_system_path(self) -> Path:
+        """~/.amini/ally_system.md — the base persona/instruction layer for ally agents."""
+        return self._root / "ally_system.md"
+
+    @property
     def owner_path(self) -> Path:
         """~/.amini/owner.json — device owner identity and last-seen timestamp."""
         return self._root / "owner.json"
