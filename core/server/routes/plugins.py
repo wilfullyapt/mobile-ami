@@ -6,7 +6,8 @@ polls /api/plugins/jobs/<job_id> for completion.
 
 Endpoints:
   GET  /api/plugins                      — list installed plugins (manifest data)
-  POST /api/plugins/install              — install from GitHub {source: "user/repo"}
+  POST /api/plugins/preview              — preview addon before install → job_id
+  POST /api/plugins/install              — install from GitHub {source: "user/repo"} → job_id
   DELETE /api/plugins/<name>             — uninstall a plugin
   POST /api/plugins/<name>/test          — run a plugin's tests → job_id
   GET  /api/plugins/jobs/<job_id>        — poll async job status
@@ -64,6 +65,8 @@ def _list_installed() -> list[dict]:
             "version": manifest.get("version", "unknown"),
             "entry_class": manifest.get("entry_class", ""),
             "description": manifest.get("description", ""),
+            "agents": manifest.get("agents", []),
+            "sub_agents": manifest.get("sub_agents", []),
         })
     return agents
 
@@ -81,6 +84,28 @@ def api_plugins_list():
         return jsonify({"error": str(exc)}), 500
 
 
+@bp.route("/api/plugins/preview", methods=["POST"])
+def api_plugins_preview():
+    """Start an async preview job. Returns job_id immediately."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        source = (data.get("source") or "").strip()
+        if not source:
+            return jsonify({"error": "source is required (e.g. user/repo)"}), 400
+
+        installer = _installer()
+
+        def _do_preview() -> str:
+            result = installer.preview(source)
+            return json.dumps(result)
+
+        job_id = _jobs().start(_do_preview, label=f"preview:{source}")
+        return jsonify({"job_id": job_id, "status": "running"}), 202
+    except Exception as exc:
+        logger.error("POST /api/plugins/preview failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @bp.route("/api/plugins/install", methods=["POST"])
 def api_plugins_install():
     """Start an async install job. Returns job_id immediately."""
@@ -94,7 +119,7 @@ def api_plugins_install():
 
         def _do_install() -> str:
             name = installer.install(source)
-            return f"Installed agent '{name}' successfully."
+            return f"Installed addon '{name}' successfully."
 
         job_id = _jobs().start(_do_install, label=f"install:{source}")
         return jsonify({"job_id": job_id, "status": "running"}), 202

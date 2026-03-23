@@ -60,6 +60,8 @@ class _ListInstalledAgentsTool(BaseTool):
 class UpdaterSubAgent(BaseSubAgent):
     """Reports update availability and manages agent plugins."""
 
+    slug = "updater"
+    display_name = "Updater"
     name = "check_updates"
     description = "Check whether software updates are available for the device."
     parameters = []

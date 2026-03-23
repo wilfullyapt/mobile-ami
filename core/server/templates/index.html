@@ -14,6 +14,7 @@
   <!-- Tab navigation -->
   <nav class="tabs" role="tablist">
     <button class="tab-btn active" onclick="showTab('dashboard')" id="tab-dashboard">Dashboard</button>
+    <button class="tab-btn" onclick="showTab('agents')"      id="tab-agents">Agents</button>
     <button class="tab-btn" onclick="showTab('wifi')"        id="tab-wifi">WiFi</button>
     <button class="tab-btn" onclick="showTab('plugins')"     id="tab-plugins">Plugins</button>
     <button class="tab-btn" onclick="showTab('tests')"       id="tab-tests">Tests</button>
@@ -53,6 +54,57 @@
     </div>
 
   </div><!-- /panel-dashboard -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: AGENTS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-agents">
+
+    <div class="card">
+      <div class="flex justify-between items-center mb-2">
+        <h2>Agents</h2>
+        <button class="btn btn-muted btn-sm" onclick="loadAgents()">Refresh</button>
+      </div>
+      <p class="text-sm text-muted mb-2">
+        Enable or disable agents and choose which tools (sub-agents) each agent can use.
+        Changes take effect immediately.
+      </p>
+      <div id="agent-config-list"><span class="text-muted text-sm">Loading…</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Device Settings</h2>
+      <div id="device-settings-form">
+        <div class="field">
+          <label for="ds-display-timeout">Display Timeout (sec)</label>
+          <input type="number" id="ds-display-timeout" min="5" max="300">
+        </div>
+        <div class="field">
+          <label for="ds-hotspot-ssid">Hotspot SSID</label>
+          <input type="text" id="ds-hotspot-ssid" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="ds-hotspot-pass">Hotspot Password</label>
+          <input type="password" id="ds-hotspot-pass" autocomplete="off">
+        </div>
+        <div class="toggle-row">
+          <span>Auto-update enabled</span>
+          <input type="checkbox" id="ds-auto-update">
+        </div>
+        <div class="field">
+          <label for="ds-update-channel">Update channel</label>
+          <select id="ds-update-channel">
+            <option value="stable">stable</option>
+            <option value="beta">beta</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-full mt-2" onclick="saveDeviceSettings()">Save Settings</button>
+        <div id="ds-result" class="mt-2 text-sm"></div>
+      </div>
+    </div>
+
+  </div><!-- /panel-agents -->
 
 
   <!-- ═══════════════════════════════════════════════════════
@@ -121,14 +173,47 @@
 
     <!-- Install form -->
     <div class="card">
-      <h2>Install Plugin</h2>
+      <h2>Install Add-on</h2>
       <div class="field">
         <label for="plugin-source">GitHub Repository</label>
         <input type="text" id="plugin-source" placeholder="user/repo or https://github.com/…" autocomplete="off">
       </div>
-      <button class="btn btn-primary btn-full" onclick="installPlugin()" id="install-btn">
-        Install
-      </button>
+      <div class="flex gap-2">
+        <button class="btn btn-muted" style="flex:1" onclick="previewPlugin()" id="preview-btn">
+          Preview
+        </button>
+        <button class="btn btn-primary" style="flex:1" onclick="installPlugin()" id="install-btn" disabled title="Preview the add-on first">
+          Install
+        </button>
+      </div>
+
+      <!-- Preview modal (shown after preview loads) -->
+      <div id="preview-area" class="hidden mt-2">
+        <div class="flex items-center gap-2" id="preview-loading">
+          <span class="spinner"></span><span class="text-sm">Loading preview…</span>
+        </div>
+        <div id="preview-modal" class="preview-modal hidden">
+          <h3 id="preview-name"></h3>
+          <p class="text-sm text-muted mb-2" id="preview-desc"></p>
+          <div id="preview-agents-section" class="hidden mb-2">
+            <span class="text-sm text-muted">Agents: </span>
+            <span id="preview-agents" class="text-sm"></span>
+          </div>
+          <div id="preview-subagents-section" class="hidden mb-2">
+            <span class="text-sm text-muted">Sub-agents: </span>
+            <span id="preview-subagents" class="text-sm"></span>
+          </div>
+          <div id="preview-conflicts-section" class="hidden mb-2">
+            <span class="text-sm" style="color: var(--warning);">⚠ Dependency conflicts:</span>
+            <ul class="conflict-list" id="preview-conflicts"></ul>
+          </div>
+          <details>
+            <summary class="text-sm text-muted" style="cursor:pointer">README</summary>
+            <pre class="preview-readme" id="preview-readme"></pre>
+          </details>
+        </div>
+      </div>
+
       <div id="install-job-area" class="hidden mt-2">
         <div class="flex items-center gap-2">
           <span class="spinner" id="install-spinner"></span>
@@ -234,6 +319,7 @@ function showTab(name) {
   document.getElementById('panel-' + name).classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
   // Lazy-load tab content on first visit
+  if (name === 'agents')   { loadAgents(); loadDeviceSettings(); }
   if (name === 'wifi')     { loadNetworkStatus(); loadSavedNetworks(); }
   if (name === 'plugins')  { loadPlugins(); }
   if (name === 'tests')    { loadTestAgentOptions(); loadTestHistory(); }
@@ -308,6 +394,164 @@ async function updateHotword(val) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({hotword_trigger: val})
   });
+}
+
+// ────────────────────────────────────────────────────────────
+// Agents tab
+// ────────────────────────────────────────────────────────────
+
+// Debounce helper
+const _debounceTimers = {};
+function debounce(key, fn, ms) {
+  clearTimeout(_debounceTimers[key]);
+  _debounceTimers[key] = setTimeout(fn, ms);
+}
+
+async function loadAgents() {
+  const el = document.getElementById('agent-config-list');
+  el.innerHTML = '<span class="text-muted text-sm">Loading…</span>';
+  try {
+    const [ar, sr] = await Promise.all([
+      fetch('/api/config/agents'),
+      fetch('/api/status'),
+    ]);
+    const { agents } = await ar.json();
+    const status = sr.ok ? await sr.json() : {};
+    const activeAgent = status.agent || '';
+
+    el.innerHTML = '';
+    agents.forEach(agent => {
+      const card = document.createElement('div');
+      card.className = 'agent-card' + (agent.enabled ? '' : ' disabled');
+      if (agent.slug === activeAgent) card.classList.add('active-agent');
+
+      // Header row
+      const header = document.createElement('div');
+      header.className = 'agent-card-header';
+      header.innerHTML = `
+        <div class="agent-card-title">
+          <span class="agent-name">${esc(agent.display_name)}</span>
+          <span class="badge badge-${agent.source}">${agent.source}</span>
+          ${agent.slug === activeAgent ? '<span class="badge badge-active">active</span>' : ''}
+        </div>
+        <label class="toggle-switch" title="${agent.enabled ? 'Disable' : 'Enable'} agent">
+          <input type="checkbox" ${agent.enabled ? 'checked' : ''}
+                 onchange="toggleAgent(${JSON.stringify(agent.slug)}, this.checked, this)">
+          <span class="toggle-slider"></span>
+        </label>`;
+      card.appendChild(header);
+
+      // Sub-agent chips
+      if (agent.sub_agents && agent.sub_agents.length) {
+        const chips = document.createElement('div');
+        chips.className = 'sub-agent-chips';
+        chips.innerHTML = '<span class="text-sm text-muted">Tools:</span>';
+        agent.sub_agents.forEach(sa => {
+          const chip = document.createElement('button');
+          chip.className = 'sub-agent-chip' + (sa.equipped ? ' equipped' : '');
+          chip.textContent = sa.display_name || sa.slug;
+          chip.title = sa.equipped ? 'Click to unequip' : 'Click to equip';
+          chip.onclick = () => {
+            chip.classList.toggle('equipped');
+            const allChips = chips.querySelectorAll('.sub-agent-chip');
+            const equipped = [...allChips]
+              .filter(c => c.classList.contains('equipped'))
+              .map((_, i) => agent.sub_agents[i].slug);
+            // Rebuild from DOM order
+            const equippedSlugs = [];
+            allChips.forEach((c, i) => {
+              if (c.classList.contains('equipped')) equippedSlugs.push(agent.sub_agents[i].slug);
+            });
+            debounce('equip-' + agent.slug, () => {
+              updateSubAgents(agent.slug, equippedSlugs);
+            }, 500);
+          };
+          chips.appendChild(chip);
+        });
+        card.appendChild(chips);
+      }
+
+      el.appendChild(card);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load agents.</span>';
+  }
+}
+
+async function toggleAgent(slug, enabled, checkbox) {
+  try {
+    const r = await fetch(`/api/config/agents/${encodeURIComponent(slug)}/toggle`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled}),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      alert(data.error || 'Failed to toggle agent');
+      checkbox.checked = !enabled; // revert
+      return;
+    }
+    // Refresh to get accurate state
+    loadAgents();
+    fetchStatus();
+  } catch(e) {
+    alert('Request failed');
+    checkbox.checked = !enabled;
+  }
+}
+
+async function updateSubAgents(slug, equippedSlugs) {
+  try {
+    await fetch(`/api/config/agents/${encodeURIComponent(slug)}/sub-agents`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({equipped_sub_agents: equippedSlugs}),
+    });
+  } catch(e) {
+    console.error('Failed to update sub-agents for', slug, e);
+  }
+}
+
+// ── Device settings ────────────────────────────────────────
+
+async function loadDeviceSettings() {
+  try {
+    const r = await fetch('/api/config/device');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('ds-display-timeout').value = d.display_timeout_sec ?? 15;
+    document.getElementById('ds-hotspot-ssid').value = d.hotspot_ssid ?? '';
+    document.getElementById('ds-hotspot-pass').value = d.hotspot_password ?? '';
+    document.getElementById('ds-auto-update').checked = !!d.auto_update_enabled;
+    document.getElementById('ds-update-channel').value = d.auto_update_channel ?? 'stable';
+  } catch(e) {}
+}
+
+async function saveDeviceSettings() {
+  const result = document.getElementById('ds-result');
+  result.textContent = '';
+  const payload = {
+    display_timeout_sec: parseInt(document.getElementById('ds-display-timeout').value) || 15,
+    hotspot_ssid:        document.getElementById('ds-hotspot-ssid').value.trim(),
+    hotspot_password:    document.getElementById('ds-hotspot-pass').value,
+    auto_update_enabled: document.getElementById('ds-auto-update').checked,
+    auto_update_channel: document.getElementById('ds-update-channel').value,
+  };
+  try {
+    const r = await fetch('/api/config/device', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      result.innerHTML = `<span class="value err">${esc(d.error || 'Save failed')}</span>`;
+    } else {
+      result.innerHTML = '<span class="value ok">Settings saved.</span>';
+    }
+  } catch(e) {
+    result.innerHTML = '<span class="value err">Request failed.</span>';
+  }
 }
 
 // ────────────────────────────────────────────────────────────
@@ -435,6 +679,103 @@ async function forgetNetwork(ssid) {
 // ────────────────────────────────────────────────────────────
 // Plugins tab
 // ────────────────────────────────────────────────────────────
+
+async function previewPlugin() {
+  const source = document.getElementById('plugin-source').value.trim();
+  if (!source) return;
+  const previewArea = document.getElementById('preview-area');
+  const loadingEl   = document.getElementById('preview-loading');
+  const modalEl     = document.getElementById('preview-modal');
+  const installBtn  = document.getElementById('install-btn');
+  const previewBtn  = document.getElementById('preview-btn');
+
+  previewArea.classList.remove('hidden');
+  loadingEl.classList.remove('hidden');
+  modalEl.classList.add('hidden');
+  installBtn.disabled = true;
+  previewBtn.disabled = true;
+
+  try {
+    const r = await fetch('/api/plugins/preview', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({source}),
+    });
+    const data = await r.json();
+    if (data.error) {
+      loadingEl.innerHTML = `<span class="value err">${esc(data.error)}</span>`;
+      return;
+    }
+    // Poll job
+    const interval = setInterval(async () => {
+      const jr = await fetch('/api/plugins/jobs/' + data.job_id).catch(() => null);
+      if (!jr || !jr.ok) return;
+      const job = await jr.json();
+      if (job.status === 'running') return;
+      clearInterval(interval);
+      loadingEl.classList.add('hidden');
+      previewBtn.disabled = false;
+
+      if (job.status === 'error' || job.error) {
+        loadingEl.classList.remove('hidden');
+        loadingEl.innerHTML = `<span class="value err">${esc(job.error || 'Preview failed')}</span>`;
+        return;
+      }
+
+      let preview;
+      try { preview = JSON.parse(job.output); } catch { preview = null; }
+      if (!preview) {
+        loadingEl.classList.remove('hidden');
+        loadingEl.innerHTML = '<span class="value err">Could not parse preview.</span>';
+        return;
+      }
+
+      // Populate modal
+      const m = preview.manifest || {};
+      document.getElementById('preview-name').textContent = m.name || source;
+      document.getElementById('preview-desc').textContent = m.description || '';
+
+      const agentsEl = document.getElementById('preview-agents');
+      const agentsSec = document.getElementById('preview-agents-section');
+      const agents = preview.agents || [];
+      if (agents.length) {
+        agentsEl.textContent = agents.map(a => a.display_name || a.slug || a.entry_class).join(', ');
+        agentsSec.classList.remove('hidden');
+      }
+
+      const saEl = document.getElementById('preview-subagents');
+      const saSec = document.getElementById('preview-subagents-section');
+      const sas = preview.sub_agents || [];
+      if (sas.length) {
+        saEl.textContent = sas.map(a => a.display_name || a.slug || a.entry_class).join(', ');
+        saSec.classList.remove('hidden');
+      }
+
+      const conflicts = preview.conflicts || [];
+      const conflictsSec = document.getElementById('preview-conflicts-section');
+      const conflictsEl  = document.getElementById('preview-conflicts');
+      if (conflicts.length) {
+        conflictsSec.classList.remove('hidden');
+        conflictsEl.innerHTML = '';
+        conflicts.forEach(c => {
+          const li = document.createElement('li');
+          li.textContent = `${c.pkg}: wants ${c.wanted}, installed ${c.installed}`;
+          conflictsEl.appendChild(li);
+        });
+      }
+
+      document.getElementById('preview-readme').textContent = preview.readme_text || '(no README)';
+
+      modalEl.classList.remove('hidden');
+      // Unlock Install only after preview is shown
+      installBtn.disabled = false;
+    }, 1500);
+  } catch(e) {
+    loadingEl.innerHTML = '<span class="value err">Request failed.</span>';
+    previewBtn.disabled = false;
+  }
+}
+
 async function loadPlugins() {
   const el = document.getElementById('plugin-list');
   el.innerHTML = '<span class="text-muted text-sm">Loading…</span>';

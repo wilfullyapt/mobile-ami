@@ -57,6 +57,8 @@ class _SetLedColorTool(BaseTool):
 class HardwareSubAgent(BaseSubAgent):
     """Reports battery status and exposes network and LED controls."""
 
+    slug = "hardware"
+    display_name = "Hardware"
     name = "get_battery_status"
     description = "Get the current battery percentage and voltage."
     parameters = []

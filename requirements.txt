@@ -1,3 +1,15 @@
+# This file is the pinned runtime requirements for mobile-ami.
+# It is generated from requirements.in via:
+#   pip-compile requirements.in
+#
+# To add or remove a dependency:
+#   1. Edit requirements.in
+#   2. Run: pip-compile requirements.in
+#   3. Commit both files
+#
+# For a quick un-pinned install (e.g. development on a fresh Pi):
+#   pip install -r requirements.in
+
 gpiozero
 luma.oled
 pillow

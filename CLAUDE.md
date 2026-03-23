@@ -6,7 +6,7 @@
 
 ---
 
-## Architecture (current branch: `claude/review-local-inference-setup-q17Oy`)
+## Architecture (current branch: `claude/review-claude-md-f9B8r`)
 
 ### Layer overview (bottom-up)
 
@@ -35,6 +35,7 @@ cli.py / main.py (VoiceAssistant entry point)
 | `config.yaml` | All model config (name, backend, quant, path, version, eager) |
 | `core/ami_paths.py` | `AmiPaths` — file-ops object for `~/.amini/`; path resolution for models and agents |
 | `core/addon_installer.py` | `AddonInstaller` — GitHub clone → validate → pre-install test → install → post-install test |
+| `core/config_manager.py` | `ConfigManager` — safe read/write of `config.yaml` with `EDITABLE_PATHS` whitelist. `ensure_config()` for first-run copy from `config.yaml.default`. |
 | `core/model_registry.py` | `ModelSpec` dataclass + `ModelRegistry(config, paths=None)`. Enums: `ModelRole`, `Backend`, `QuantType` |
 | `core/model_orchestrator.py` | `ModelOrchestrator` — lazy loading, Hailo slot enforcement, hot-swap via `swap()`, `preload_eager()` |
 | `core/pipeline.py` | `VoicePipeline` with 4 stages + `PipelineContext` dataclass |
@@ -50,7 +51,10 @@ cli.py / main.py (VoiceAssistant entry point)
 | `agents/tools/base_tool.py` | `BaseTool` ABC + `ToolParam` dataclass + `to_llm_schema()` (Ollama format) |
 | `agents/tools/tool_registry.py` | `ToolRegistry` — register, get, execute, all_schemas |
 | `agents/tools/timer_tool.py` | `TimerTool` — starts background thread timer, speaks start/complete via injected callback |
-| `tests/` | 115+ pytest unit tests covering all components |
+| `agents/tools/tool_registry.py` | `ToolRegistry` — register, get, execute, all_schemas. `FilteredToolRegistry` — per-agent proxy filtered by equipped sub-agent slugs |
+| `agents/subagents/dependency_subagent.py` | `DependencySubAgent` — checks/reconciles addon requirements; works without orchestrator |
+| `core/server/routes/config.py` | `/api/config/agents` — list + live toggle + sub-agent equip; `/api/config/device` — device settings |
+| `tests/` | 165+ pytest unit tests covering all components |
 
 ---
 
@@ -106,6 +110,14 @@ amini test <agent>               # run specific agent's tests
 
 ## Design decisions to remember
 
+- **`config.yaml` is user-local; `config.yaml.default` is the committed template** — `ConfigManager.ensure_config()` copies default → config on first run. `config.yaml` is gitignored.
+- **`ConfigManager.EDITABLE_PATHS` whitelist** — only approved config keys can be written via the server. Hardware pins, model backends, etc. are read-only from the web UI.
+- **`FilteredToolRegistry` is a live proxy** — filters the global registry by equipped sub-agent slugs at call time. Equip changes take effect immediately without restarting agents.
+- **Agent enable/disable is live** — `AgentManager.enable_agent()` / `disable_agent()` add/remove agents from the cycling list in-place. Sub-agent equip is also live via `update_equipped_sub_agents()`.
+- **`DependencySubAgent` works without an orchestrator** — pass `orchestrator=None`; it only uses `packaging` + `subprocess`. Used by `AddonInstaller.preview()` and `install()`.
+- **Add-on packages support multi-agent layout** — `manifest.json` with `agents: [...]` and `sub_agents: [...]` keys. Legacy single-file `agent.py` repos still work unchanged.
+- **Preview gate for addon install** — web UI requires Preview to be loaded before Install activates. Shows README, agent/sub-agent list, and dependency conflicts.
+- **`requirements.in` is human-maintained; `requirements.txt` is compiled output** — run `pip-compile requirements.in` after adding deps (`pip-tools` in dev dependencies).
 - **`AmiPaths` is the single source of truth for `~/.amini/`** — pass it to `ModelRegistry` and `AgentManager`; never hardcode `~/.amini/` paths elsewhere.
 - **`ModelRegistry(config, paths=None)`** — when `paths` is provided, `spec.path` is auto-resolved: `null` → role model dir, bare filename → role model dir / filename, absolute → unchanged. Backward compatible: `paths=None` preserves original behaviour.
 - **`AgentManager` loads built-ins then plugins** — built-ins (`qa`, `block_timer`) always available; `~/.amini/agents/<slug>/` plugins loaded dynamically via importlib.

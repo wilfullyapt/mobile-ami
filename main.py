@@ -3,6 +3,8 @@ import os
 import threading
 import time
 
+from pathlib import Path
+
 import yaml
 
 from hardware.audio import AudioManager
@@ -14,6 +16,7 @@ from hardware.power import get_battery
 
 from core.agent_context import AgentContext
 from core.ami_paths import AmiPaths
+from core.config_manager import ConfigManager
 from core.addon_installer import AddonInstaller
 from core.conversation_logger import ConversationLogger
 from core.modes.interaction_mode import InteractionMode, ModeManager
@@ -39,15 +42,21 @@ from agents.subagents.timer_subagent import TimerSubAgent
 from agents.subagents.hardware_subagent import HardwareSubAgent
 from agents.subagents.updater_subagent import UpdaterSubAgent
 from agents.subagents.conversation_subagent import ConversationSubAgent
+from agents.subagents.dependency_subagent import DependencySubAgent
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
 
+_PROJECT_ROOT = Path(__file__).resolve().parent
+_CONFIG_PATH = _PROJECT_ROOT / "config.yaml"
+_DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "config.yaml.default"
+
+
 class VoiceAssistant:
     def __init__(self, paths: AmiPaths = None):
-        with open("config.yaml") as f:
-            self.config = yaml.safe_load(f)
+        self.config_manager = ConfigManager(_CONFIG_PATH, _DEFAULT_CONFIG_PATH)
+        self.config = self.config_manager.raw()
 
         # ── User data directory (~/.amini/) ────────────────────────────
         self.paths = paths or AmiPaths()
@@ -123,7 +132,7 @@ class VoiceAssistant:
                 leds=self.leds,
             ),
         )
-        self._installer = AddonInstaller(self.paths)
+        self._installer = AddonInstaller(self.paths, config_manager=self.config_manager)
         register_sub_agent(
             self.tool_registry,
             UpdaterSubAgent(
@@ -139,6 +148,10 @@ class VoiceAssistant:
                 self.paths,
                 context=self.agent_context,
             ),
+        )
+        register_sub_agent(
+            self.tool_registry,
+            DependencySubAgent(self.orchestrator, self.paths),
         )
 
         # ── Agent layer — config-driven exposed list + installed plugins ─
@@ -162,6 +175,7 @@ class VoiceAssistant:
             tool_registry=self.tool_registry,
             paths=self.paths,
             context=self.agent_context,
+            config_manager=self.config_manager,
         )
 
         # ── Ally agent (injected — needs soul/owner/listener at runtime) ─
@@ -195,6 +209,7 @@ class VoiceAssistant:
                 addon_installer=self._installer,
                 conv_logger=self.conv_logger,
                 job_manager=self.job_manager,
+                config_manager=self.config_manager,
             )
             self.network.add_state_change_callback(self._on_network_state_change)
         else:

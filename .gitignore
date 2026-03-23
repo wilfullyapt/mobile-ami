@@ -2,3 +2,6 @@
 **/*.pyc
 .venv/
 _version.py
+
+# config.yaml is user-local; config.yaml.default is the committed template
+config.yaml

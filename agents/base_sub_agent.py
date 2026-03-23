@@ -35,7 +35,15 @@ if TYPE_CHECKING:
 class BaseSubAgent(BaseTool, ABC):
     """
     Abstract sub-agent: a primary BaseTool that may expose additional tools.
+
+    Class attributes
+    ----------------
+    slug         Machine key used in config (e.g. "memory"). Must be unique.
+    display_name Human-readable label shown in the web UI.
     """
+
+    slug: str = ""           # machine key: "memory", "timer", etc.
+    display_name: str = ""   # shown in Agents tab UI
 
     def __init__(
         self,
@@ -58,3 +66,5 @@ def register_sub_agent(registry: ToolRegistry, sub: BaseSubAgent) -> None:
     registry.register(sub)
     for tool in sub.get_additional_tools():
         registry.register(tool)
+    # Index by slug so the server can enumerate sub-agents
+    registry.register_sub_agent_meta(sub)

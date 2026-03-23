@@ -47,6 +47,8 @@ class _MemoryRecallTool(BaseTool):
 class MemorySubAgent(BaseSubAgent):
     """Persists arbitrary key-value pairs to ~/.amini/memory.json."""
 
+    slug = "memory"
+    display_name = "Memory"
     name = "memory_store"
     description = "Store a piece of information for later recall."
     parameters = [

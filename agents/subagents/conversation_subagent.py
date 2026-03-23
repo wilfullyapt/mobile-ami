@@ -55,6 +55,8 @@ class _SummarizeConversationTool(BaseTool):
 class ConversationSubAgent(BaseSubAgent):
     """Provides access to shared AgentContext conversation history."""
 
+    slug = "conversation"
+    display_name = "Conversation History"
     name = "get_conversation_history"
     description = "Retrieve recent conversation history as a formatted string."
     parameters = [

@@ -50,6 +50,8 @@ class TimerSubAgent(BaseSubAgent):
     references the old TimerTool by name.
     """
 
+    slug = "timer"
+    display_name = "Timer"
     name = "set_timer"
     description = "Start a countdown timer for a given number of minutes and announce when it completes."
     parameters = [

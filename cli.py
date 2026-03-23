@@ -20,9 +20,16 @@ import subprocess
 import sys
 from importlib.metadata import version as _pkg_version, PackageNotFoundError
 
+from pathlib import Path
+
 import yaml
 
 from core.ami_paths import AmiPaths
+from core.config_manager import ConfigManager
+
+_PROJECT_ROOT = Path(__file__).resolve().parent
+_CONFIG_PATH = _PROJECT_ROOT / "config.yaml"
+_DEFAULT_CONFIG_PATH = _PROJECT_ROOT / "config.yaml.default"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -34,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 def cmd_run(args, paths: AmiPaths) -> None:
     """Start the voice assistant."""
+    ConfigManager.ensure_config(_CONFIG_PATH, _DEFAULT_CONFIG_PATH)
     # Import here so the CLI is importable without hardware present
     from main import VoiceAssistant
     app = VoiceAssistant(paths=paths)

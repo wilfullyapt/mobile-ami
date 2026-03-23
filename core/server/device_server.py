@@ -40,9 +40,10 @@ class DeviceServer:
         addon_installer=None,
         conv_logger=None,
         job_manager=None,
+        config_manager=None,
     ):
         self._port = port
-        self._app = self._build_app(voice_assistant, addon_installer, conv_logger, job_manager)
+        self._app = self._build_app(voice_assistant, addon_installer, conv_logger, job_manager, config_manager)
         self._server = None          # werkzeug WSGIServer — set on start()
         self._thread: threading.Thread | None = None
         self._running = False
@@ -75,7 +76,7 @@ class DeviceServer:
     # Flask app factory
     # ------------------------------------------------------------------
 
-    def _build_app(self, va, installer, conv_logger, job_manager) -> Flask:
+    def _build_app(self, va, installer, conv_logger, job_manager, config_manager=None) -> Flask:
         app = Flask(
             __name__,
             template_folder=str(_TEMPLATE_DIR),
@@ -90,6 +91,7 @@ class DeviceServer:
         app.config["ADDON_INSTALLER"] = installer
         app.config["CONV_LOGGER"] = conv_logger
         app.config["JOB_MANAGER"] = job_manager
+        app.config["CONFIG_MANAGER"] = config_manager
 
         # ── Dashboard ──────────────────────────────────────────────────
         @app.route("/")
@@ -102,8 +104,9 @@ class DeviceServer:
         from core.server.routes.plugins import bp as plugins_bp
         from core.server.routes.conversations import bp as conv_bp
         from core.server.routes.test_runner import bp as test_bp
+        from core.server.routes.config import bp as config_bp
 
-        for bp in (status_bp, network_bp, plugins_bp, conv_bp, test_bp):
+        for bp in (status_bp, network_bp, plugins_bp, conv_bp, test_bp, config_bp):
             app.register_blueprint(bp)
 
         # ── Generic error handlers ─────────────────────────────────────
