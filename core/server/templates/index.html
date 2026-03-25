@@ -73,6 +73,33 @@
       <div id="agent-config-list"><span class="text-muted text-sm">Loading…</span></div>
     </div>
 
+    <div class="card" id="soul-framework-card">
+      <div class="flex justify-between items-center mb-2">
+        <h2>Soul Framework</h2>
+        <span id="soul-last-update" class="text-xs text-muted"></span>
+      </div>
+      <p class="text-sm text-muted mb-3">
+        The Ally's soul is its persistent identity. Below are the current section headings
+        (written by the Ally) and the framework you'd like the Ally to aim for.
+        The Ally sees your preferences before each journal session and may follow, adapt, or ignore them.
+      </p>
+      <div class="mb-3">
+        <p class="text-sm font-medium mb-1">Current Soul Structure</p>
+        <div id="soul-actual-sections" class="text-sm text-muted">(not available)</div>
+      </div>
+      <div>
+        <p class="text-sm font-medium mb-1">Desired Framework</p>
+        <p class="text-xs text-muted mb-2">Add or remove headings. Drag to reorder (use handles).</p>
+        <div id="soul-framework-list" class="mb-2"></div>
+        <div class="flex gap-2 mb-2">
+          <input type="text" id="soul-new-section" placeholder="New section heading" style="flex:1">
+          <button class="btn btn-sm" onclick="addSoulSection()">Add</button>
+        </div>
+        <button class="btn btn-sm" onclick="saveSoulFramework()">Save Framework</button>
+        <span id="soul-save-status" class="text-xs text-muted ml-2"></span>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Device Settings</h2>
       <div id="device-settings-form">
@@ -319,7 +346,7 @@ function showTab(name) {
   document.getElementById('panel-' + name).classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
   // Lazy-load tab content on first visit
-  if (name === 'agents')   { loadAgents(); loadDeviceSettings(); }
+  if (name === 'agents')   { loadAgents(); loadDeviceSettings(); loadSoulFramework(); }
   if (name === 'wifi')     { loadNetworkStatus(); loadSavedNetworks(); }
   if (name === 'plugins')  { loadPlugins(); }
   if (name === 'tests')    { loadTestAgentOptions(); loadTestHistory(); }
@@ -509,6 +536,86 @@ async function updateSubAgents(slug, equippedSlugs) {
     });
   } catch(e) {
     console.error('Failed to update sub-agents for', slug, e);
+  }
+}
+
+// ── Soul framework ─────────────────────────────────────────
+
+let _soulFramework = [];
+
+async function loadSoulFramework() {
+  try {
+    const [sectR, updateR] = await Promise.all([
+      fetch('/api/ally/soul/sections'),
+      fetch('/api/ally/soul/last_update'),
+    ]);
+    if (!sectR.ok) return;
+    const data = await sectR.json();
+    _soulFramework = data.framework || [];
+    renderSoulActual(data.actual || []);
+    renderSoulFrameworkList();
+
+    if (updateR.ok) {
+      const upd = await updateR.json();
+      const el = document.getElementById('soul-last-update');
+      if (upd.updated_at) {
+        const d = new Date(upd.updated_at);
+        el.textContent = `Last update: ${d.toLocaleDateString()} — ${(upd.sections_changed || []).join(', ')}`;
+      }
+    }
+  } catch(e) { /* soul manager may not be active */ }
+}
+
+function renderSoulActual(headings) {
+  const el = document.getElementById('soul-actual-sections');
+  if (!headings.length) { el.textContent = '(no sections yet)'; return; }
+  el.innerHTML = headings.map(h => `<span class="badge">${h}</span>`).join(' ');
+}
+
+function renderSoulFrameworkList() {
+  const el = document.getElementById('soul-framework-list');
+  el.innerHTML = '';
+  _soulFramework.forEach((h, i) => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 mb-1';
+    row.innerHTML = `
+      <span class="text-muted" style="cursor:grab">⠿</span>
+      <span style="flex:1" class="text-sm">${h}</span>
+      <button class="btn btn-sm btn-muted" onclick="removeSoulSection(${i})">✕</button>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function addSoulSection() {
+  const inp = document.getElementById('soul-new-section');
+  const val = inp.value.trim();
+  if (!val) return;
+  if (!_soulFramework.includes(val)) {
+    _soulFramework.push(val);
+    renderSoulFrameworkList();
+  }
+  inp.value = '';
+}
+
+function removeSoulSection(i) {
+  _soulFramework.splice(i, 1);
+  renderSoulFrameworkList();
+}
+
+async function saveSoulFramework() {
+  const status = document.getElementById('soul-save-status');
+  status.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/ally/soul/sections', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sections: _soulFramework}),
+    });
+    status.textContent = r.ok ? 'Saved.' : 'Error saving.';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  } catch(e) {
+    status.textContent = 'Request failed.';
   }
 }
 

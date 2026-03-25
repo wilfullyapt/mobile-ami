@@ -37,6 +37,10 @@ EDITABLE_PATHS: set[tuple] = {
     ("ally", "threshold"),
     ("ally", "check_interval_sec"),
     ("ally", "interaction_mode"),
+    ("ally", "soul_sections"),
+    ("ally", "journal_snapshot_section"),
+    ("ally", "soul_reorganize_interval_days"),
+    ("ally", "journal_summary_last_n"),
 }
 
 # Friendly names for the device settings the UI exposes

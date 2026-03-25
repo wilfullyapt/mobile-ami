@@ -127,6 +127,12 @@ class AllyContext:
     ambient_notes: list = field(default_factory=list)
     ambient_utterances: list = field(default_factory=list)
     agent_context: Optional["AgentContext"] = None
+    soul_framework: list[str] = field(default_factory=list)
+    """
+    Ordered list of section headings the user wants the soul to contain.
+    Read from config.ally.soul_sections. Injected into the system prompt as a
+    framework hint — the Ally may follow, adapt, or ignore it.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -295,6 +301,17 @@ class BaseAllyAgent(BaseAgent):
             # No base template: use soul alone
             merged = soul
 
+        # Inject the user's soul framework preference as a hint (never enforced)
+        if ctx.soul_framework:
+            framework_lines = "\n".join(f"- {h}" for h in ctx.soul_framework)
+            framework_hint = (
+                "## Soul Framework (user preference)\n"
+                "The user has indicated they'd like the soul organised around these sections:\n"
+                f"{framework_lines}\n"
+                "You may follow, adapt, or ignore this as you see fit."
+            )
+            merged = merged + "\n\n---\n\n" + framework_hint
+
         if extra_sections:
             merged = merged + "\n\n---\n\n" + "\n\n---\n\n".join(extra_sections.values())
 
@@ -459,6 +476,8 @@ class BaseAllyAgent(BaseAgent):
             self._listener.get_recent_context() if self._listener else []
         )
 
+        soul_framework = list(self._ally_config.get("soul_sections", []))
+
         return AllyContext(
             soul_text=soul_text,
             system_base=system_base,
@@ -469,6 +488,7 @@ class BaseAllyAgent(BaseAgent):
             ambient_notes=notes or [],
             ambient_utterances=ambient_utterances,
             agent_context=context,
+            soul_framework=soul_framework,
         )
 
     # ------------------------------------------------------------------

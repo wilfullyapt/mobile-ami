@@ -91,6 +91,21 @@ class AmiPaths:
         """~/.amini/data/ally/memory/ — ally-written dated memory entries."""
         return self.agent_data_dir("ally") / "memory"
 
+    @property
+    def ally_journal_dir(self) -> Path:
+        """~/.amini/data/ally/journal/ — daily journal entry JSON files."""
+        return self.agent_data_dir("ally") / "journal"
+
+    @property
+    def soul_update_path(self) -> Path:
+        """~/.amini/data/ally/soul_update.json — last soul modification metadata."""
+        return self.agent_data_dir("ally") / "soul_update.json"
+
+    @property
+    def journal_reorg_marker_path(self) -> Path:
+        """~/.amini/data/ally/.last_journal_reorg — ISO date of last snapshot reorganize."""
+        return self.agent_data_dir("ally") / ".last_journal_reorg"
+
     # ------------------------------------------------------------------
     # Ally / owner / soul paths
     # ------------------------------------------------------------------
@@ -132,6 +147,7 @@ class AmiPaths:
         self.ally_notes_dir.mkdir(parents=True, exist_ok=True)
         self.ally_audio_dir.mkdir(parents=True, exist_ok=True)
         self.ally_memory_dir.mkdir(parents=True, exist_ok=True)
+        self.ally_journal_dir.mkdir(parents=True, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Agent discovery

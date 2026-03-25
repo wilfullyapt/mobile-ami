@@ -146,3 +146,24 @@ ally:
 
   # Max seconds of audio saved per unknown-voice WAV clip.
   unknown_voice_clip_sec: 5
+
+  # Number of recent journal entries scanned when building the journal snapshot.
+  journal_summary_last_n: 100
+
+  # How many days between full LLM reorganizations of the journal snapshot section.
+  # On non-reorganize nights a lightweight one-liner headline is appended instead.
+  soul_reorganize_interval_days: 30
+
+  # Which soul.md section receives the journal snapshot (updated each 3AM session).
+  journal_snapshot_section: "Journal Entry Snapshot"
+
+  # User-defined soul section framework — ordered list of desired headings.
+  # The Ally sees these before each journal session and may follow, adapt, or ignore them.
+  # Changes here take effect on the next journal session (no restart required).
+  soul_sections:
+    - "Identity"
+    - "Purpose"
+    - "Owner"
+    - "Core Values"
+    - "Journal Entry Snapshot"
+    - "Growth Notes"

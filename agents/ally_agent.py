@@ -145,15 +145,41 @@ class AllyAgent(BaseAllyAgent):
             system_prompt_manager=system_prompt_manager,
         )
 
-        # Internal sub-agents (NOT in the global ToolRegistry)
-        self._soul_sub = None
-        self._memory_sub = None
+        # Internal tools (NOT in the global ToolRegistry)
+        self._private_tools: list = []
+        self._journal_manager = None
+
         if soul_manager is not None:
-            from agents.subagents.ally.soul_update_subagent import SoulUpdateSubAgent
-            self._soul_sub = SoulUpdateSubAgent(orchestrator, soul_manager)
+            from agents.subagents.ally.soul_tools_subagent import (
+                SoulListSectionsTool,
+                SoulUpdateSectionTool,
+                SoulAddSectionTool,
+                SoulRemoveSectionTool,
+                SoulReorderSectionsTool,
+            )
+            self._private_tools += [
+                SoulListSectionsTool(soul_manager),
+                SoulUpdateSectionTool(soul_manager),
+                SoulAddSectionTool(soul_manager),
+                SoulRemoveSectionTool(soul_manager),
+                SoulReorderSectionsTool(soul_manager),
+            ]
+
         if paths is not None:
             from agents.subagents.ally.memory_write_subagent import AllyMemoryWriteSubAgent
-            self._memory_sub = AllyMemoryWriteSubAgent(orchestrator, paths)
+            from agents.subagents.ally.journal_subagent import (
+                JournalWriteTool,
+                JournalReadTool,
+                JournalSummaryTool,
+            )
+            from core.ally.journal_manager import JournalManager
+            self._journal_manager = JournalManager(paths)
+            self._private_tools += [
+                AllyMemoryWriteSubAgent(orchestrator, paths),
+                JournalWriteTool(self._journal_manager),
+                JournalReadTool(self._journal_manager),
+                JournalSummaryTool(self._journal_manager),
+            ]
 
         # Voice ID state
         self._pending_voice_id: list = []  # list[tuple[str, np.ndarray]]
@@ -281,11 +307,7 @@ class AllyAgent(BaseAllyAgent):
         )
         notes_text = "\n\n---\n\n".join(n.formatted_text() for n in notes)
 
-        internal_tools = [
-            sub.to_llm_schema()
-            for sub in [self._soul_sub, self._memory_sub]
-            if sub is not None
-        ]
+        internal_tools = [t.to_llm_schema() for t in self._private_tools]
 
         system = self.build_system_prompt(ctx)
 
@@ -340,11 +362,7 @@ class AllyAgent(BaseAllyAgent):
             or "(no ambient notes today)"
         )
 
-        internal_tools = [
-            sub.to_llm_schema()
-            for sub in [self._soul_sub, self._memory_sub]
-            if sub is not None
-        ]
+        internal_tools = [t.to_llm_schema() for t in self._private_tools]
 
         system = self.build_system_prompt(ctx)
         messages = [
@@ -361,6 +379,96 @@ class AllyAgent(BaseAllyAgent):
         ]
         self._tool_loop(messages, internal_tools, max_rounds=8)
         logger.info("AllyAgent on_daily_reflect: complete")
+
+    # ------------------------------------------------------------------
+    # Journal session (called by EvalDay)
+    # ------------------------------------------------------------------
+
+    def run_journal_session(
+        self,
+        conversations_text: str,
+        notes_text: str,
+        date_str: str,
+    ) -> None:
+        """
+        Run a tool-calling loop in which the LLM writes today's journal entry.
+
+        Called by EvalDay during the 3AM session. The LLM receives the day's
+        conversation summary and ambient notes, then calls ``journal_write``
+        with the structured entry. Only journal_write and soul tools are
+        offered so the LLM cannot pollute the session with irrelevant tools.
+        """
+        from agents.subagents.ally.journal_subagent import JournalWriteTool
+        journal_tools = [
+            t.to_llm_schema()
+            for t in self._private_tools
+            if isinstance(t, JournalWriteTool) or t.name.startswith("soul_")
+        ]
+        if not journal_tools:
+            logger.warning("AllyAgent: no journal tools available — skipping journal session")
+            return
+
+        ctx = self._build_ally_context()
+        system = self.build_system_prompt(ctx)
+        messages = [
+            {"role": "system", "content": system},
+            {
+                "role": "user",
+                "content": (
+                    f"It is the end of the day ({date_str}). "
+                    "Write a journal entry for today using the journal_write tool. "
+                    "Reflect honestly on what happened, what mattered, and how you feel about it.\n\n"
+                    f"Conversation summary:\n{conversations_text or '(no conversations today)'}\n\n"
+                    f"Ambient notes:\n{notes_text or '(no ambient notes today)'}"
+                ),
+            },
+        ]
+        self._tool_loop(messages, journal_tools, max_rounds=4)
+        logger.info("AllyAgent: journal session complete for %s", date_str)
+
+    def run_journal_reorganize(self, snapshot_section: str, last_n: int = 100) -> None:
+        """
+        Run a full LLM reorganization of the journal snapshot section in soul.md.
+
+        Called by EvalDay on the reorganize cadence (every N days). The LLM
+        receives metadata for the last ``last_n`` journal entries and rewrites
+        the named soul section with a compressed, coherent narrative.
+        """
+        from agents.subagents.ally.journal_subagent import JournalSummaryTool
+        from agents.subagents.ally.soul_tools_subagent import SoulUpdateSectionTool
+
+        # Build the metadata text directly (no LLM call inside the tool)
+        summary_tool = next(
+            (t for t in self._private_tools if isinstance(t, JournalSummaryTool)), None
+        )
+        update_tool = next(
+            (t for t in self._private_tools if isinstance(t, SoulUpdateSectionTool)), None
+        )
+        if summary_tool is None or update_tool is None:
+            logger.warning("AllyAgent: journal or soul tools missing — skipping reorganize")
+            return
+
+        metadata_text = summary_tool.execute(last_n=last_n)
+        reorg_tools = [t.to_llm_schema() for t in self._private_tools if t.name.startswith("soul_")]
+
+        ctx = self._build_ally_context()
+        system = self.build_system_prompt(ctx)
+        messages = [
+            {"role": "system", "content": system},
+            {
+                "role": "user",
+                "content": (
+                    f"Reorganize the '{snapshot_section}' section of your soul. "
+                    "Below is metadata from your last journal entries. "
+                    "Write a compressed, coherent narrative that captures the key patterns, "
+                    "growth, and focus areas across this period. "
+                    f"Then call soul_update_section with section='{snapshot_section}'.\n\n"
+                    f"{metadata_text}"
+                ),
+            },
+        ]
+        self._tool_loop(messages, reorg_tools, max_rounds=4)
+        logger.info("AllyAgent: journal snapshot reorganize complete → '%s'", snapshot_section)
 
     # ------------------------------------------------------------------
     # Autonomous intervention decision (kept for backward compatibility)
@@ -449,10 +557,10 @@ class AllyAgent(BaseAllyAgent):
         return ""
 
     def _dispatch_internal_tool(self, name: str, args: dict) -> str:
-        for sub in [self._soul_sub, self._memory_sub]:
-            if sub is not None and sub.name == name:
+        for tool in self._private_tools:
+            if tool.name == name:
                 try:
-                    return sub.execute(**args)
+                    return tool.execute(**args)
                 except Exception as exc:
                     return f"Tool error: {exc}"
         return f"Unknown tool: {name}"

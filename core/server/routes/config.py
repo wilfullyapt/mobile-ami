@@ -24,6 +24,16 @@ GET  /api/config/device
 
 POST /api/config/device
      Update one or more device settings.
+
+GET  /api/ally/soul/sections
+     {actual: [...headings from soul.md...], framework: [...from config...]}
+
+POST /api/ally/soul/sections
+     {sections: ["Identity", "Journal Entry Snapshot", ...]}
+     Update the desired soul framework in config.ally.soul_sections.
+
+GET  /api/ally/soul/last_update
+     {updated_at, sections_changed, operation} — last soul modification metadata.
 """
 
 import logging
@@ -154,4 +164,77 @@ def api_config_device_post():
         return jsonify({"error": str(exc)}), 403
     except Exception as exc:
         logger.error("POST /api/config/device failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+# ------------------------------------------------------------------
+# Soul section framework (ally)
+# ------------------------------------------------------------------
+
+@bp.route("/api/ally/soul/sections")
+def api_ally_soul_sections_get():
+    """
+    Return the actual soul.md headings and the user's desired framework.
+
+    ``actual``    — headings currently in soul.md (what the Ally wrote).
+    ``framework`` — config.ally.soul_sections (what the user wants).
+    """
+    try:
+        va = _va()
+        cm = _cm()
+
+        actual: list[str] = []
+        if hasattr(va, "soul_manager") and va.soul_manager is not None:
+            actual = va.soul_manager.get_headings()
+
+        framework = cm.get("ally", "soul_sections", default=[])
+        if not isinstance(framework, list):
+            framework = []
+
+        return jsonify({"actual": actual, "framework": framework})
+    except Exception as exc:
+        logger.error("GET /api/ally/soul/sections failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@bp.route("/api/ally/soul/sections", methods=["POST"])
+def api_ally_soul_sections_post():
+    """
+    Update the desired soul framework in config.ally.soul_sections.
+
+    Body: {sections: ["Identity", "Journal Entry Snapshot", ...]}
+    The Ally will see these headings as a preference on its next journal session.
+    """
+    try:
+        cm = _cm()
+        data = request.get_json(force=True, silent=True) or {}
+        sections = data.get("sections")
+        if not isinstance(sections, list):
+            return jsonify({"error": "'sections' must be a list of strings"}), 400
+        if not all(isinstance(s, str) for s in sections):
+            return jsonify({"error": "'sections' must contain only strings"}), 400
+
+        cm.set("ally", "soul_sections", value=sections)
+        return jsonify({"framework": sections})
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except Exception as exc:
+        logger.error("POST /api/ally/soul/sections failed: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
+@bp.route("/api/ally/soul/last_update")
+def api_ally_soul_last_update():
+    """Return metadata about the most recent soul.md modification."""
+    try:
+        va = _va()
+        if not hasattr(va, "soul_manager") or va.soul_manager is None:
+            return jsonify({"error": "Soul manager not available"}), 503
+
+        update = va.soul_manager.read_last_update()
+        if update is None:
+            return jsonify({"updated_at": None, "sections_changed": [], "operation": None})
+        return jsonify(update)
+    except Exception as exc:
+        logger.error("GET /api/ally/soul/last_update failed: %s", exc)
         return jsonify({"error": str(exc)}), 500
