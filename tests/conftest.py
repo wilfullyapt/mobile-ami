@@ -41,7 +41,15 @@ sys.modules.setdefault("faster_whisper", _stub("faster_whisper", WhisperModel=Ma
 sys.modules.setdefault("ollama", _stub("ollama"))
 
 # ── qrcode (may not be installed) ────────────────────────────────────────────
+# The QRCode mock must return a real PIL Image so that StatusDisplay._render_qr()
+# can unpack `qr_img.size` and call `canvas.paste(qr_img, ...)` without crashing.
+# Background page-cycling timers leak from display tests into later tests, so the
+# mock must be PIL-compatible end-to-end.
 try:
     import qrcode  # noqa: F401
 except ModuleNotFoundError:
-    sys.modules.setdefault("qrcode", _stub("qrcode", QRCode=MagicMock))
+    from PIL import Image as _PILImage
+    _qr_img = _PILImage.new("1", (64, 64), 0)
+    _qr_instance = MagicMock()
+    _qr_instance.make_image.return_value.convert.return_value = _qr_img
+    sys.modules.setdefault("qrcode", _stub("qrcode", QRCode=MagicMock(return_value=_qr_instance)))

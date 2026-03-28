@@ -125,7 +125,7 @@ class TestIntervalListen:
         llm = MagicMock()
         tool_call = {
             "function": {
-                "name": "update_soul_section",
+                "name": "soul_update_section",
                 "arguments": {"section": "Purpose", "content": "Help Alice stay organised."},
             }
         }
@@ -154,7 +154,7 @@ class TestIntervalListen:
 
         note = _make_note([_make_utterance("test")])
         result = agent.interval_listen([note])
-        soul.write_raw.assert_called_once()
+        soul.update_section.assert_called_once_with("Purpose", "Help Alice stay organised.")
         assert result is None  # SILENT after tool call
 
     def test_interval_listen_populates_pending_voice_id(self, tmp_path):
