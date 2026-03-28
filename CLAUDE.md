@@ -4,6 +4,35 @@
 
 **mobile-ami** is a handheld, fully offline voice AI assistant running on a Raspberry Pi with a Hailo-10H AI accelerator HAT. The device runs 5 AI models locally (STT, TTS, LLM, wake word, VAD) and supports multiple specialized agents — built-in and 3rd-party add-ons installed from GitHub — that the user can cycle through via a physical button or configure from the web UI.
 
+---
+
+## Hardware Bill of Materials (confirmed March 2026)
+
+| Component | Notes |
+|---|---|
+| **Raspberry Pi 5 8GB** | Main compute board |
+| **Raspberry Pi AI HAT+ 2 (Hailo-10H)** | Connects via PCIe FFC — does NOT use 40-pin GPIO header. No pin conflicts with other HATs. |
+| **KEYESTUDIO ReSpeaker 2-Mic Pi HAT V1** | WM8960 audio codec over I2S + I2C. 3× APA102 LEDs via SPI (MOSI=GPIO 10 / CLK=GPIO 11). Sits on 40-pin header. |
+| **Geekworm X1202 PSU (4-cell 18650 UPS HAT)** | Battery management over I2C address 0x36 (MAX17043-compatible fuel gauge). Stacks below Pi. |
+| **1.3" SH1106 OLED (I2C, 128×64)** | Controller is **SH1106**, NOT SSD1306. I2C address 0x3C. Wired to GPIO 2 (SDA) / GPIO 3 (SCL). |
+| **3× Tactile buttons** | GPIO 17 (power/machine), GPIO 27 (action), GPIO 22 (interaction). All wire to GND; gpiozero internal pull-up active. |
+
+### Key pin map
+
+| GPIO | Function | Used by |
+|---|---|---|
+| 2 (SDA) | I2C bus | OLED (0x3C), WM8960 (0x1A), X1202 fuel gauge (0x36) |
+| 3 (SCL) | I2C bus | (same bus, shared) |
+| 10 (SPI0 MOSI) | APA102 data | ReSpeaker LEDs |
+| 11 (SPI0 CLK) | APA102 clock | ReSpeaker LEDs |
+| 18 (PCM_CLK) | I2S bit clock | ReSpeaker audio — **must NOT be used for SPI** |
+| 19 (PCM_FS) | I2S LR clock | ReSpeaker audio |
+| 20 (PCM_DIN) | I2S data in | ReSpeaker audio (mic) |
+| 21 (PCM_DOUT) | I2S data out | ReSpeaker audio (speaker) |
+| 17 | Button input | machine/power button |
+| 27 | Button input | action button |
+| 22 | Button input | interaction button |
+
 3rd-party add-ons load immediately: their agents and sub-agents are live in the system as soon as install completes, configurable per-agent from the web UI without restarting.
 
 ---
