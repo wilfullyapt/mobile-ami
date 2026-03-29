@@ -1,0 +1,29 @@
+# mobile-ami runtime dependencies
+# Edit this file to add/remove packages, then run:
+#   pip-compile requirements.in
+# to regenerate the pinned requirements.txt
+
+# Hardware (Raspberry Pi)
+gpiozero
+luma.oled
+pillow
+qrcode[pil]
+smbus2
+apa102
+
+# Audio / AI models
+openwakeword
+webrtcvad
+faster-whisper
+ollama
+sounddevice
+numpy
+resemblyzer
+
+# Server + config
+flask
+pyyaml
+packaging
+
+# Dev / test (kept in main requirements for amini test command)
+pytest

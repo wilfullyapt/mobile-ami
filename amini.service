@@ -1,12 +1,15 @@
 [Unit]
 Description=Local AI Voice Assistant
-After=network.target hailo.service
+After=network.target hailo.service ollama.service
+Wants=ollama.service
 
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/opt/voice-assistant
-ExecStart=/usr/bin/python3 /opt/voice-assistant/main.py
+WorkingDirectory=/home/pi/mobile-ami
+ExecStart=/usr/bin/python3 /home/pi/mobile-ami/cli.py run
+Environment="PYTHONUNBUFFERED=1"
+Environment="OLLAMA_MODELS=/home/pi/.amini/models/llm"
 Restart=always
 RestartSec=5
 

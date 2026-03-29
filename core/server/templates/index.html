@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Amini Device</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="page-wrap">
+
+  <h1>&#9670; Amini Device</h1>
+
+  <!-- Tab navigation -->
+  <nav class="tabs" role="tablist">
+    <button class="tab-btn active" onclick="showTab('dashboard')" id="tab-dashboard">Dashboard</button>
+    <button class="tab-btn" onclick="showTab('agents')"      id="tab-agents">Agents</button>
+    <button class="tab-btn" onclick="showTab('wifi')"        id="tab-wifi">WiFi</button>
+    <button class="tab-btn" onclick="showTab('plugins')"     id="tab-plugins">Plugins</button>
+    <button class="tab-btn" onclick="showTab('tests')"       id="tab-tests">Tests</button>
+    <button class="tab-btn" onclick="showTab('history')"     id="tab-history">History</button>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: DASHBOARD
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="panel-dashboard">
+
+    <!-- Status card -->
+    <div class="card">
+      <h2>Device Status</h2>
+      <div class="status-row"><span class="label">Battery</span><span class="value" id="s-battery">--</span></div>
+      <div class="status-row"><span class="label">Network</span><span class="value" id="s-network">--</span></div>
+      <div class="status-row"><span class="label">Internet</span><span class="value" id="s-internet">--</span></div>
+      <div class="status-row"><span class="label">IP</span><span class="value" id="s-ip">--</span></div>
+      <div class="status-row"><span class="label">SSID</span><span class="value" id="s-ssid">--</span></div>
+      <div class="status-row"><span class="label">Active Agent</span><span class="value accent" id="s-agent">--</span></div>
+    </div>
+
+    <!-- Agent selector -->
+    <div class="card">
+      <h2>Active Agent</h2>
+      <div id="agent-list"></div>
+      <button class="btn btn-primary btn-full mt-2" onclick="cycleAgent()">Cycle Agent</button>
+    </div>
+
+    <!-- Settings -->
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="toggle-row">
+        <span>Hotword Trigger</span>
+        <input type="checkbox" id="hotword-toggle" onchange="updateHotword(this.checked)">
+      </div>
+    </div>
+
+  </div><!-- /panel-dashboard -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: AGENTS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-agents">
+
+    <div class="card">
+      <div class="flex justify-between items-center mb-2">
+        <h2>Agents</h2>
+        <button class="btn btn-muted btn-sm" onclick="loadAgents()">Refresh</button>
+      </div>
+      <p class="text-sm text-muted mb-2">
+        Enable or disable agents and choose which tools (sub-agents) each agent can use.
+        Changes take effect immediately.
+      </p>
+      <div id="agent-config-list"><span class="text-muted text-sm">Loading…</span></div>
+    </div>
+
+    <div class="card" id="soul-framework-card">
+      <div class="flex justify-between items-center mb-2">
+        <h2>Soul Framework</h2>
+        <span id="soul-last-update" class="text-xs text-muted"></span>
+      </div>
+      <p class="text-sm text-muted mb-3">
+        The Ally's soul is its persistent identity. Below are the current section headings
+        (written by the Ally) and the framework you'd like the Ally to aim for.
+        The Ally sees your preferences before each journal session and may follow, adapt, or ignore them.
+      </p>
+      <div class="mb-3">
+        <p class="text-sm font-medium mb-1">Current Soul Structure</p>
+        <div id="soul-actual-sections" class="text-sm text-muted">(not available)</div>
+      </div>
+      <div>
+        <p class="text-sm font-medium mb-1">Desired Framework</p>
+        <p class="text-xs text-muted mb-2">Add or remove headings. Drag to reorder (use handles).</p>
+        <div id="soul-framework-list" class="mb-2"></div>
+        <div class="flex gap-2 mb-2">
+          <input type="text" id="soul-new-section" placeholder="New section heading" style="flex:1">
+          <button class="btn btn-sm" onclick="addSoulSection()">Add</button>
+        </div>
+        <button class="btn btn-sm" onclick="saveSoulFramework()">Save Framework</button>
+        <span id="soul-save-status" class="text-xs text-muted ml-2"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Device Settings</h2>
+      <div id="device-settings-form">
+        <div class="field">
+          <label for="ds-display-timeout">Display Timeout (sec)</label>
+          <input type="number" id="ds-display-timeout" min="5" max="300">
+        </div>
+        <div class="field">
+          <label for="ds-hotspot-ssid">Hotspot SSID</label>
+          <input type="text" id="ds-hotspot-ssid" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="ds-hotspot-pass">Hotspot Password</label>
+          <input type="password" id="ds-hotspot-pass" autocomplete="off">
+        </div>
+        <div class="toggle-row">
+          <span>Auto-update enabled</span>
+          <input type="checkbox" id="ds-auto-update">
+        </div>
+        <div class="field">
+          <label for="ds-update-channel">Update channel</label>
+          <select id="ds-update-channel">
+            <option value="stable">stable</option>
+            <option value="beta">beta</option>
+          </select>
+        </div>
+        <button class="btn btn-primary btn-full mt-2" onclick="saveDeviceSettings()">Save Settings</button>
+        <div id="ds-result" class="mt-2 text-sm"></div>
+      </div>
+    </div>
+
+  </div><!-- /panel-agents -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: WIFI
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-wifi">
+
+    <!-- Current state -->
+    <div class="card">
+      <h2>Network State</h2>
+      <div class="status-row"><span class="label">Mode</span><span class="value" id="w-state">--</span></div>
+      <div class="status-row"><span class="label">SSID</span><span class="value" id="w-ssid">--</span></div>
+      <div class="status-row"><span class="label">IP</span><span class="value" id="w-ip">--</span></div>
+      <div class="status-row"><span class="label">Internet</span><span class="value" id="w-internet">--</span></div>
+      <div class="mt-2 flex gap-2">
+        <button class="btn btn-muted" style="flex:1" onclick="cycleNetwork()">Cycle Mode</button>
+        <button class="btn btn-primary" style="flex:1" onclick="switchToHotspot()">Enable Hotspot</button>
+      </div>
+    </div>
+
+    <!-- WiFi setup portal -->
+    <div class="card" id="wifi-setup-card">
+      <h2>Connect to WiFi</h2>
+      <p class="text-sm text-muted mb-2">
+        Select a network below or enter an SSID manually, then provide the password and connect.
+        The device will switch to WiFi mode; if no connection forms within 20 seconds it will
+        return to hotspot automatically.
+      </p>
+
+      <div class="field">
+        <label>Available Networks</label>
+        <div id="wifi-network-list"><span class="text-muted text-sm">Tap "Scan" to discover networks.</span></div>
+        <button class="btn btn-muted btn-sm mt-2" onclick="scanNetworks()" id="scan-btn">
+          Scan for Networks
+        </button>
+      </div>
+
+      <div class="field">
+        <label for="wifi-ssid-input">SSID</label>
+        <input type="text" id="wifi-ssid-input" placeholder="Network name" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="wifi-pass-input">Password</label>
+        <input type="password" id="wifi-pass-input" placeholder="Leave blank for open networks" autocomplete="off">
+      </div>
+      <button class="btn btn-primary btn-full" onclick="connectWifi()" id="connect-btn">
+        Connect
+      </button>
+      <div id="wifi-connect-result" class="mt-2 text-sm"></div>
+    </div>
+
+    <!-- Saved networks -->
+    <div class="card">
+      <h2>Saved Networks</h2>
+      <div id="saved-networks-list"><span class="text-muted text-sm">Loading…</span></div>
+      <button class="btn btn-muted btn-sm mt-2" onclick="loadSavedNetworks()">Refresh</button>
+    </div>
+
+  </div><!-- /panel-wifi -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: PLUGINS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-plugins">
+
+    <!-- Install form -->
+    <div class="card">
+      <h2>Install Add-on</h2>
+      <div class="field">
+        <label for="plugin-source">GitHub Repository</label>
+        <input type="text" id="plugin-source" placeholder="user/repo or https://github.com/…" autocomplete="off">
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-muted" style="flex:1" onclick="previewPlugin()" id="preview-btn">
+          Preview
+        </button>
+        <button class="btn btn-primary" style="flex:1" onclick="installPlugin()" id="install-btn" disabled title="Preview the add-on first">
+          Install
+        </button>
+      </div>
+
+      <!-- Preview modal (shown after preview loads) -->
+      <div id="preview-area" class="hidden mt-2">
+        <div class="flex items-center gap-2" id="preview-loading">
+          <span class="spinner"></span><span class="text-sm">Loading preview…</span>
+        </div>
+        <div id="preview-modal" class="preview-modal hidden">
+          <h3 id="preview-name"></h3>
+          <p class="text-sm text-muted mb-2" id="preview-desc"></p>
+          <div id="preview-agents-section" class="hidden mb-2">
+            <span class="text-sm text-muted">Agents: </span>
+            <span id="preview-agents" class="text-sm"></span>
+          </div>
+          <div id="preview-subagents-section" class="hidden mb-2">
+            <span class="text-sm text-muted">Sub-agents: </span>
+            <span id="preview-subagents" class="text-sm"></span>
+          </div>
+          <div id="preview-conflicts-section" class="hidden mb-2">
+            <span class="text-sm" style="color: var(--warning);">⚠ Dependency conflicts:</span>
+            <ul class="conflict-list" id="preview-conflicts"></ul>
+          </div>
+          <details>
+            <summary class="text-sm text-muted" style="cursor:pointer">README</summary>
+            <pre class="preview-readme" id="preview-readme"></pre>
+          </details>
+        </div>
+      </div>
+
+      <div id="install-job-area" class="hidden mt-2">
+        <div class="flex items-center gap-2">
+          <span class="spinner" id="install-spinner"></span>
+          <span id="install-status" class="text-sm">Installing…</span>
+        </div>
+        <div class="job-output hidden" id="install-output"></div>
+      </div>
+    </div>
+
+    <!-- Installed plugins list -->
+    <div class="card">
+      <h2>Installed Plugins</h2>
+      <div id="plugin-list"><span class="text-muted text-sm">Loading…</span></div>
+      <button class="btn btn-muted btn-sm mt-2" onclick="loadPlugins()">Refresh</button>
+    </div>
+
+    <!-- Per-plugin test output -->
+    <div id="plugin-test-area" class="card hidden">
+      <div class="flex justify-between items-center mb-2">
+        <h2 id="plugin-test-title">Test Results</h2>
+        <button class="btn btn-muted btn-sm" onclick="document.getElementById('plugin-test-area').classList.add('hidden')">✕</button>
+      </div>
+      <div class="flex items-center gap-2" id="plugin-test-running">
+        <span class="spinner"></span><span class="text-sm">Running tests…</span>
+      </div>
+      <div class="job-output hidden" id="plugin-test-output"></div>
+    </div>
+
+  </div><!-- /panel-plugins -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: TESTS
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-tests">
+
+    <div class="card">
+      <h2>Test Suite Runner</h2>
+      <p class="text-sm text-muted mb-2">
+        Run the full project test suite (no hardware required — all external deps are mocked)
+        or target tests for a specific installed agent.
+      </p>
+
+      <div class="field">
+        <label for="test-agent-select">Scope</label>
+        <select id="test-agent-select">
+          <option value="">Full project test suite</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="runTests()" id="run-tests-btn">
+        Run Tests
+      </button>
+    </div>
+
+    <div id="test-job-area" class="card hidden">
+      <div class="flex justify-between items-center mb-2">
+        <h2>Test Output <span id="test-job-badge" class="badge badge-running">running</span></h2>
+        <button class="btn btn-muted btn-sm" onclick="document.getElementById('test-job-area').classList.add('hidden')">✕</button>
+      </div>
+      <div class="flex items-center gap-2" id="test-running-indicator">
+        <span class="spinner"></span><span class="text-sm" id="test-running-label">Running…</span>
+      </div>
+      <div class="job-output hidden" id="test-output"></div>
+    </div>
+
+    <!-- Previous test runs -->
+    <div class="card">
+      <h2>Recent Test Runs</h2>
+      <div id="test-history-list"><span class="text-muted text-sm">No runs yet.</span></div>
+      <button class="btn btn-muted btn-sm mt-2" onclick="loadTestHistory()">Refresh</button>
+    </div>
+
+  </div><!-- /panel-tests -->
+
+
+  <!-- ═══════════════════════════════════════════════════════
+       TAB: HISTORY
+  ═══════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="panel-history">
+
+    <div class="card">
+      <h2>Conversation History</h2>
+
+      <div class="filter-chips" id="agent-chips">
+        <button class="chip active" onclick="filterHistory(null, this)">All</button>
+      </div>
+
+      <div id="history-list"><span class="text-muted text-sm">No conversations yet.</span></div>
+      <button class="btn btn-muted btn-sm mt-2" onclick="loadHistory()">Refresh</button>
+    </div>
+
+  </div><!-- /panel-history -->
+
+</div><!-- /page-wrap -->
+
+<script>
+// ────────────────────────────────────────────────────────────
+// Tab routing
+// ────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  // Lazy-load tab content on first visit
+  if (name === 'agents')   { loadAgents(); loadDeviceSettings(); loadSoulFramework(); }
+  if (name === 'wifi')     { loadNetworkStatus(); loadSavedNetworks(); }
+  if (name === 'plugins')  { loadPlugins(); }
+  if (name === 'tests')    { loadTestAgentOptions(); loadTestHistory(); }
+  if (name === 'history')  { loadHistory(); loadHistoryAgentChips(); }
+}
+
+// ────────────────────────────────────────────────────────────
+// Polling helpers
+// ────────────────────────────────────────────────────────────
+function pollJob(jobId, onDone, statusEl, outputEl, spinnerEl, badgeEl) {
+  const interval = setInterval(async () => {
+    const r = await fetch('/api/plugins/jobs/' + jobId).catch(() => null)
+              || await fetch('/api/test/jobs/' + jobId).catch(() => null);
+    if (!r || !r.ok) return;
+    const job = await r.json();
+    if (statusEl) statusEl.textContent = job.status === 'running' ? 'Running…' : (job.status === 'done' ? 'Done' : 'Failed');
+    if (badgeEl) { badgeEl.className = 'badge badge-' + job.status; badgeEl.textContent = job.status; }
+    if (job.status !== 'running') {
+      clearInterval(interval);
+      if (spinnerEl) spinnerEl.classList.add('hidden');
+      if (outputEl) {
+        outputEl.classList.remove('hidden');
+        outputEl.textContent = job.output || job.error || '(no output)';
+      }
+      if (onDone) onDone(job);
+    }
+  }, 1500);
+}
+
+// ────────────────────────────────────────────────────────────
+// Dashboard
+// ────────────────────────────────────────────────────────────
+async function fetchStatus() {
+  const [sr, nr] = await Promise.all([fetch('/api/status'), fetch('/api/network')]).catch(() => [null, null]);
+  if (!sr || !sr.ok) return;
+  const s = await sr.json();
+  const n = await nr.json();
+
+  document.getElementById('s-battery').textContent  = s.battery_pct + '% · ' + s.voltage + 'V';
+  document.getElementById('s-network').textContent  = s.net_state;
+  document.getElementById('s-internet').textContent = s.has_internet ? '✓ Online' : '✗ Offline';
+  document.getElementById('s-internet').className   = 'value ' + (s.has_internet ? 'ok' : 'warn');
+  document.getElementById('s-ip').textContent       = n.ip || '--';
+  document.getElementById('s-ssid').textContent     = s.ssid || '--';
+  document.getElementById('s-agent').textContent    = s.agent;
+  document.getElementById('hotword-toggle').checked = s.hotword_trigger;
+
+  const list = document.getElementById('agent-list');
+  list.innerHTML = '';
+  (s.agents || []).forEach(slug => {
+    const btn = document.createElement('button');
+    btn.textContent = slug;
+    btn.className = 'agent-pill' + (slug === s.agent ? ' active' : '');
+    btn.onclick = () => setAgent(slug);
+    list.appendChild(btn);
+  });
+}
+
+async function cycleAgent() {
+  await fetch('/api/agent/cycle', {method: 'POST'});
+  fetchStatus();
+}
+
+async function setAgent(slug) {
+  await fetch('/api/agent/set/' + slug, {method: 'POST'});
+  fetchStatus();
+}
+
+async function updateHotword(val) {
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({hotword_trigger: val})
+  });
+}
+
+// ────────────────────────────────────────────────────────────
+// Agents tab
+// ────────────────────────────────────────────────────────────
+
+// Debounce helper
+const _debounceTimers = {};
+function debounce(key, fn, ms) {
+  clearTimeout(_debounceTimers[key]);
+  _debounceTimers[key] = setTimeout(fn, ms);
+}
+
+async function loadAgents() {
+  const el = document.getElementById('agent-config-list');
+  el.innerHTML = '<span class="text-muted text-sm">Loading…</span>';
+  try {
+    const [ar, sr] = await Promise.all([
+      fetch('/api/config/agents'),
+      fetch('/api/status'),
+    ]);
+    const { agents } = await ar.json();
+    const status = sr.ok ? await sr.json() : {};
+    const activeAgent = status.agent || '';
+
+    el.innerHTML = '';
+    agents.forEach(agent => {
+      const card = document.createElement('div');
+      card.className = 'agent-card' + (agent.enabled ? '' : ' disabled');
+      if (agent.slug === activeAgent) card.classList.add('active-agent');
+
+      // Header row
+      const header = document.createElement('div');
+      header.className = 'agent-card-header';
+      header.innerHTML = `
+        <div class="agent-card-title">
+          <span class="agent-name">${esc(agent.display_name)}</span>
+          <span class="badge badge-${agent.source}">${agent.source}</span>
+          ${agent.slug === activeAgent ? '<span class="badge badge-active">active</span>' : ''}
+        </div>
+        <label class="toggle-switch" title="${agent.enabled ? 'Disable' : 'Enable'} agent">
+          <input type="checkbox" ${agent.enabled ? 'checked' : ''}
+                 onchange="toggleAgent(${JSON.stringify(agent.slug)}, this.checked, this)">
+          <span class="toggle-slider"></span>
+        </label>`;
+      card.appendChild(header);
+
+      // Sub-agent chips
+      if (agent.sub_agents && agent.sub_agents.length) {
+        const chips = document.createElement('div');
+        chips.className = 'sub-agent-chips';
+        chips.innerHTML = '<span class="text-sm text-muted">Tools:</span>';
+        agent.sub_agents.forEach(sa => {
+          const chip = document.createElement('button');
+          chip.className = 'sub-agent-chip' + (sa.equipped ? ' equipped' : '');
+          chip.textContent = sa.display_name || sa.slug;
+          chip.title = sa.equipped ? 'Click to unequip' : 'Click to equip';
+          chip.onclick = () => {
+            chip.classList.toggle('equipped');
+            const allChips = chips.querySelectorAll('.sub-agent-chip');
+            const equipped = [...allChips]
+              .filter(c => c.classList.contains('equipped'))
+              .map((_, i) => agent.sub_agents[i].slug);
+            // Rebuild from DOM order
+            const equippedSlugs = [];
+            allChips.forEach((c, i) => {
+              if (c.classList.contains('equipped')) equippedSlugs.push(agent.sub_agents[i].slug);
+            });
+            debounce('equip-' + agent.slug, () => {
+              updateSubAgents(agent.slug, equippedSlugs);
+            }, 500);
+          };
+          chips.appendChild(chip);
+        });
+        card.appendChild(chips);
+      }
+
+      el.appendChild(card);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load agents.</span>';
+  }
+}
+
+async function toggleAgent(slug, enabled, checkbox) {
+  try {
+    const r = await fetch(`/api/config/agents/${encodeURIComponent(slug)}/toggle`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled}),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      alert(data.error || 'Failed to toggle agent');
+      checkbox.checked = !enabled; // revert
+      return;
+    }
+    // Refresh to get accurate state
+    loadAgents();
+    fetchStatus();
+  } catch(e) {
+    alert('Request failed');
+    checkbox.checked = !enabled;
+  }
+}
+
+async function updateSubAgents(slug, equippedSlugs) {
+  try {
+    await fetch(`/api/config/agents/${encodeURIComponent(slug)}/sub-agents`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({equipped_sub_agents: equippedSlugs}),
+    });
+  } catch(e) {
+    console.error('Failed to update sub-agents for', slug, e);
+  }
+}
+
+// ── Soul framework ─────────────────────────────────────────
+
+let _soulFramework = [];
+
+async function loadSoulFramework() {
+  try {
+    const [sectR, updateR] = await Promise.all([
+      fetch('/api/ally/soul/sections'),
+      fetch('/api/ally/soul/last_update'),
+    ]);
+    if (!sectR.ok) return;
+    const data = await sectR.json();
+    _soulFramework = data.framework || [];
+    renderSoulActual(data.actual || []);
+    renderSoulFrameworkList();
+
+    if (updateR.ok) {
+      const upd = await updateR.json();
+      const el = document.getElementById('soul-last-update');
+      if (upd.updated_at) {
+        const d = new Date(upd.updated_at);
+        el.textContent = `Last update: ${d.toLocaleDateString()} — ${(upd.sections_changed || []).join(', ')}`;
+      }
+    }
+  } catch(e) { /* soul manager may not be active */ }
+}
+
+function renderSoulActual(headings) {
+  const el = document.getElementById('soul-actual-sections');
+  if (!headings.length) { el.textContent = '(no sections yet)'; return; }
+  el.innerHTML = headings.map(h => `<span class="badge">${h}</span>`).join(' ');
+}
+
+function renderSoulFrameworkList() {
+  const el = document.getElementById('soul-framework-list');
+  el.innerHTML = '';
+  _soulFramework.forEach((h, i) => {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 mb-1';
+    row.innerHTML = `
+      <span class="text-muted" style="cursor:grab">⠿</span>
+      <span style="flex:1" class="text-sm">${h}</span>
+      <button class="btn btn-sm btn-muted" onclick="removeSoulSection(${i})">✕</button>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function addSoulSection() {
+  const inp = document.getElementById('soul-new-section');
+  const val = inp.value.trim();
+  if (!val) return;
+  if (!_soulFramework.includes(val)) {
+    _soulFramework.push(val);
+    renderSoulFrameworkList();
+  }
+  inp.value = '';
+}
+
+function removeSoulSection(i) {
+  _soulFramework.splice(i, 1);
+  renderSoulFrameworkList();
+}
+
+async function saveSoulFramework() {
+  const status = document.getElementById('soul-save-status');
+  status.textContent = 'Saving…';
+  try {
+    const r = await fetch('/api/ally/soul/sections', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sections: _soulFramework}),
+    });
+    status.textContent = r.ok ? 'Saved.' : 'Error saving.';
+    setTimeout(() => { status.textContent = ''; }, 3000);
+  } catch(e) {
+    status.textContent = 'Request failed.';
+  }
+}
+
+// ── Device settings ────────────────────────────────────────
+
+async function loadDeviceSettings() {
+  try {
+    const r = await fetch('/api/config/device');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('ds-display-timeout').value = d.display_timeout_sec ?? 15;
+    document.getElementById('ds-hotspot-ssid').value = d.hotspot_ssid ?? '';
+    document.getElementById('ds-hotspot-pass').value = d.hotspot_password ?? '';
+    document.getElementById('ds-auto-update').checked = !!d.auto_update_enabled;
+    document.getElementById('ds-update-channel').value = d.auto_update_channel ?? 'stable';
+  } catch(e) {}
+}
+
+async function saveDeviceSettings() {
+  const result = document.getElementById('ds-result');
+  result.textContent = '';
+  const payload = {
+    display_timeout_sec: parseInt(document.getElementById('ds-display-timeout').value) || 15,
+    hotspot_ssid:        document.getElementById('ds-hotspot-ssid').value.trim(),
+    hotspot_password:    document.getElementById('ds-hotspot-pass').value,
+    auto_update_enabled: document.getElementById('ds-auto-update').checked,
+    auto_update_channel: document.getElementById('ds-update-channel').value,
+  };
+  try {
+    const r = await fetch('/api/config/device', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      result.innerHTML = `<span class="value err">${esc(d.error || 'Save failed')}</span>`;
+    } else {
+      result.innerHTML = '<span class="value ok">Settings saved.</span>';
+    }
+  } catch(e) {
+    result.innerHTML = '<span class="value err">Request failed.</span>';
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// WiFi tab
+// ────────────────────────────────────────────────────────────
+async function loadNetworkStatus() {
+  const r = await fetch('/api/network').catch(() => null);
+  if (!r || !r.ok) return;
+  const n = await r.json();
+  document.getElementById('w-state').textContent    = n.state;
+  document.getElementById('w-ssid').textContent     = n.ssid || '--';
+  document.getElementById('w-ip').textContent       = n.ip || '--';
+  document.getElementById('w-internet').textContent = n.has_internet ? '✓ Online' : '✗ Offline';
+  document.getElementById('w-internet').className   = 'value ' + (n.has_internet ? 'ok' : 'warn');
+}
+
+async function cycleNetwork() {
+  await fetch('/api/network/cycle', {method: 'POST'});
+  loadNetworkStatus();
+}
+
+async function switchToHotspot() {
+  await fetch('/api/network/cycle', {method: 'POST'});  // simplified — use direct endpoint if added
+  loadNetworkStatus();
+}
+
+async function scanNetworks() {
+  const btn = document.getElementById('scan-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Scanning…';
+  const listEl = document.getElementById('wifi-network-list');
+  listEl.innerHTML = '<span class="text-muted text-sm">Scanning…</span>';
+
+  try {
+    const r = await fetch('/api/wifi/networks');
+    if (!r.ok) throw new Error('Scan failed');
+    const data = await r.json();
+    const nets = data.networks || [];
+
+    listEl.innerHTML = '';
+    if (!nets.length) {
+      listEl.innerHTML = '<span class="text-muted text-sm">No networks found.</span>';
+      return;
+    }
+    nets.forEach(net => {
+      const el = document.createElement('div');
+      el.className = 'wifi-network';
+      el.innerHTML =
+        `<span class="wifi-ssid">${esc(net.ssid)}</span>` +
+        `<span class="wifi-signal">${net.signal}% ${net.security ? '🔒' : ''}</span>`;
+      el.onclick = () => {
+        document.querySelectorAll('.wifi-network').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        document.getElementById('wifi-ssid-input').value = net.ssid;
+        document.getElementById('wifi-pass-input').focus();
+      };
+      listEl.appendChild(el);
+    });
+  } catch(e) {
+    listEl.innerHTML = '<span class="value err">Scan failed.</span>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Scan for Networks';
+  }
+}
+
+async function connectWifi() {
+  const ssid = document.getElementById('wifi-ssid-input').value.trim();
+  const pass  = document.getElementById('wifi-pass-input').value;
+  const result = document.getElementById('wifi-connect-result');
+  if (!ssid) { result.innerHTML = '<span class="value err">Please enter an SSID.</span>'; return; }
+
+  const btn = document.getElementById('connect-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Connecting…';
+  result.innerHTML = '';
+
+  try {
+    const r = await fetch('/api/wifi/connect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ssid, password: pass})
+    });
+    const data = await r.json();
+    if (data.ok) {
+      result.innerHTML = `<span class="value ok">Connected to ${esc(ssid)}. Device is switching to WiFi mode…</span>`;
+      setTimeout(loadNetworkStatus, 3000);
+    } else {
+      result.innerHTML = `<span class="value err">${esc(data.error || 'Connection failed.')}</span>`;
+    }
+  } catch(e) {
+    result.innerHTML = '<span class="value err">Request failed.</span>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Connect';
+  }
+}
+
+async function loadSavedNetworks() {
+  const el = document.getElementById('saved-networks-list');
+  el.innerHTML = '<span class="text-muted text-sm">Loading…</span>';
+  try {
+    const r = await fetch('/api/wifi/saved');
+    const data = await r.json();
+    const nets = data.networks || [];
+    if (!nets.length) { el.innerHTML = '<span class="text-muted text-sm">No saved networks.</span>'; return; }
+    el.innerHTML = '';
+    nets.forEach(ssid => {
+      const row = document.createElement('div');
+      row.className = 'status-row';
+      row.innerHTML = `<span class="text-sm">${esc(ssid)}</span>
+        <button class="btn btn-danger btn-sm" onclick="forgetNetwork(${JSON.stringify(ssid)})">Forget</button>`;
+      el.appendChild(row);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load.</span>';
+  }
+}
+
+async function forgetNetwork(ssid) {
+  await fetch('/api/wifi/saved/' + encodeURIComponent(ssid), {method: 'DELETE'});
+  loadSavedNetworks();
+}
+
+// ────────────────────────────────────────────────────────────
+// Plugins tab
+// ────────────────────────────────────────────────────────────
+
+async function previewPlugin() {
+  const source = document.getElementById('plugin-source').value.trim();
+  if (!source) return;
+  const previewArea = document.getElementById('preview-area');
+  const loadingEl   = document.getElementById('preview-loading');
+  const modalEl     = document.getElementById('preview-modal');
+  const installBtn  = document.getElementById('install-btn');
+  const previewBtn  = document.getElementById('preview-btn');
+
+  previewArea.classList.remove('hidden');
+  loadingEl.classList.remove('hidden');
+  modalEl.classList.add('hidden');
+  installBtn.disabled = true;
+  previewBtn.disabled = true;
+
+  try {
+    const r = await fetch('/api/plugins/preview', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({source}),
+    });
+    const data = await r.json();
+    if (data.error) {
+      loadingEl.innerHTML = `<span class="value err">${esc(data.error)}</span>`;
+      return;
+    }
+    // Poll job
+    const interval = setInterval(async () => {
+      const jr = await fetch('/api/plugins/jobs/' + data.job_id).catch(() => null);
+      if (!jr || !jr.ok) return;
+      const job = await jr.json();
+      if (job.status === 'running') return;
+      clearInterval(interval);
+      loadingEl.classList.add('hidden');
+      previewBtn.disabled = false;
+
+      if (job.status === 'error' || job.error) {
+        loadingEl.classList.remove('hidden');
+        loadingEl.innerHTML = `<span class="value err">${esc(job.error || 'Preview failed')}</span>`;
+        return;
+      }
+
+      let preview;
+      try { preview = JSON.parse(job.output); } catch { preview = null; }
+      if (!preview) {
+        loadingEl.classList.remove('hidden');
+        loadingEl.innerHTML = '<span class="value err">Could not parse preview.</span>';
+        return;
+      }
+
+      // Populate modal
+      const m = preview.manifest || {};
+      document.getElementById('preview-name').textContent = m.name || source;
+      document.getElementById('preview-desc').textContent = m.description || '';
+
+      const agentsEl = document.getElementById('preview-agents');
+      const agentsSec = document.getElementById('preview-agents-section');
+      const agents = preview.agents || [];
+      if (agents.length) {
+        agentsEl.textContent = agents.map(a => a.display_name || a.slug || a.entry_class).join(', ');
+        agentsSec.classList.remove('hidden');
+      }
+
+      const saEl = document.getElementById('preview-subagents');
+      const saSec = document.getElementById('preview-subagents-section');
+      const sas = preview.sub_agents || [];
+      if (sas.length) {
+        saEl.textContent = sas.map(a => a.display_name || a.slug || a.entry_class).join(', ');
+        saSec.classList.remove('hidden');
+      }
+
+      const conflicts = preview.conflicts || [];
+      const conflictsSec = document.getElementById('preview-conflicts-section');
+      const conflictsEl  = document.getElementById('preview-conflicts');
+      if (conflicts.length) {
+        conflictsSec.classList.remove('hidden');
+        conflictsEl.innerHTML = '';
+        conflicts.forEach(c => {
+          const li = document.createElement('li');
+          li.textContent = `${c.pkg}: wants ${c.wanted}, installed ${c.installed}`;
+          conflictsEl.appendChild(li);
+        });
+      }
+
+      document.getElementById('preview-readme').textContent = preview.readme_text || '(no README)';
+
+      modalEl.classList.remove('hidden');
+      // Unlock Install only after preview is shown
+      installBtn.disabled = false;
+    }, 1500);
+  } catch(e) {
+    loadingEl.innerHTML = '<span class="value err">Request failed.</span>';
+    previewBtn.disabled = false;
+  }
+}
+
+async function loadPlugins() {
+  const el = document.getElementById('plugin-list');
+  el.innerHTML = '<span class="text-muted text-sm">Loading…</span>';
+  try {
+    const r = await fetch('/api/plugins');
+    const data = await r.json();
+    const plugins = data.plugins || [];
+    if (!plugins.length) { el.innerHTML = '<span class="text-muted text-sm">No plugins installed.</span>'; return; }
+    el.innerHTML = '';
+    plugins.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'plugin-card';
+      card.innerHTML = `
+        <div class="plugin-header">
+          <span class="plugin-name">${esc(p.name)}</span>
+          <span class="plugin-ver">v${esc(p.version)}</span>
+        </div>
+        ${p.description ? `<div class="plugin-desc">${esc(p.description)}</div>` : ''}
+        <div class="plugin-actions">
+          <button class="btn btn-success btn-sm" onclick="testPlugin(${JSON.stringify(p.name)})">Run Tests</button>
+          <button class="btn btn-danger btn-sm" onclick="removePlugin(${JSON.stringify(p.name)})">Remove</button>
+        </div>`;
+      el.appendChild(card);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load plugins.</span>';
+  }
+}
+
+async function installPlugin() {
+  const source = document.getElementById('plugin-source').value.trim();
+  if (!source) return;
+  const btn = document.getElementById('install-btn');
+  const area = document.getElementById('install-job-area');
+  const statusEl = document.getElementById('install-status');
+  const outputEl = document.getElementById('install-output');
+  const spinnerEl = document.getElementById('install-spinner');
+
+  btn.disabled = true;
+  area.classList.remove('hidden');
+  outputEl.classList.add('hidden');
+  outputEl.textContent = '';
+  statusEl.textContent = 'Installing…';
+
+  try {
+    const r = await fetch('/api/plugins/install', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({source})
+    });
+    const data = await r.json();
+    if (data.error) { statusEl.textContent = 'Error: ' + data.error; btn.disabled = false; return; }
+
+    pollJob(data.job_id, (job) => {
+      btn.disabled = false;
+      if (job.status === 'done') loadPlugins();
+    }, statusEl, outputEl, spinnerEl, null);
+  } catch(e) {
+    statusEl.textContent = 'Request failed.';
+    btn.disabled = false;
+  }
+}
+
+async function testPlugin(name) {
+  const area = document.getElementById('plugin-test-area');
+  const titleEl = document.getElementById('plugin-test-title');
+  const runningEl = document.getElementById('plugin-test-running');
+  const outputEl = document.getElementById('plugin-test-output');
+
+  area.classList.remove('hidden');
+  titleEl.textContent = 'Tests: ' + name;
+  runningEl.classList.remove('hidden');
+  outputEl.classList.add('hidden');
+  outputEl.textContent = '';
+
+  const r = await fetch('/api/plugins/' + encodeURIComponent(name) + '/test', {method: 'POST'});
+  const data = await r.json();
+
+  pollJob(data.job_id, () => { runningEl.classList.add('hidden'); }, null, outputEl, null, null);
+}
+
+async function removePlugin(name) {
+  if (!confirm('Remove plugin "' + name + '"?')) return;
+  const r = await fetch('/api/plugins/' + encodeURIComponent(name), {method: 'DELETE'});
+  if (r.ok) loadPlugins();
+}
+
+// ────────────────────────────────────────────────────────────
+// Tests tab
+// ────────────────────────────────────────────────────────────
+async function loadTestAgentOptions() {
+  const sel = document.getElementById('test-agent-select');
+  // Keep the first option, rebuild the rest
+  while (sel.options.length > 1) sel.remove(1);
+  try {
+    const r = await fetch('/api/agents');
+    const data = await r.json();
+    (data.agents || []).forEach(slug => {
+      const opt = document.createElement('option');
+      opt.value = slug;
+      opt.textContent = 'Agent: ' + slug;
+      sel.appendChild(opt);
+    });
+  } catch {}
+}
+
+async function runTests() {
+  const agent = document.getElementById('test-agent-select').value;
+  const btn = document.getElementById('run-tests-btn');
+  const area = document.getElementById('test-job-area');
+  const badgeEl = document.getElementById('test-job-badge');
+  const runningEl = document.getElementById('test-running-indicator');
+  const labelEl = document.getElementById('test-running-label');
+  const outputEl = document.getElementById('test-output');
+
+  btn.disabled = true;
+  area.classList.remove('hidden');
+  outputEl.classList.add('hidden');
+  outputEl.textContent = '';
+  badgeEl.className = 'badge badge-running';
+  badgeEl.textContent = 'running';
+  runningEl.classList.remove('hidden');
+  labelEl.textContent = agent ? `Running tests for agent: ${agent}…` : 'Running full test suite…';
+
+  const url = '/api/test/run' + (agent ? '?agent=' + encodeURIComponent(agent) : '');
+  const r = await fetch(url, {method: 'POST'});
+  const data = await r.json();
+
+  pollJob(data.job_id, (job) => {
+    btn.disabled = false;
+    runningEl.classList.add('hidden');
+    loadTestHistory();
+  }, null, outputEl, null, badgeEl);
+}
+
+async function loadTestHistory() {
+  const el = document.getElementById('test-history-list');
+  try {
+    const r = await fetch('/api/test/jobs');
+    const data = await r.json();
+    const jobs = (data.jobs || []).reverse();
+    if (!jobs.length) { el.innerHTML = '<span class="text-muted text-sm">No runs yet.</span>'; return; }
+    el.innerHTML = '';
+    jobs.slice(0, 10).forEach(job => {
+      const row = document.createElement('div');
+      row.className = 'status-row';
+      row.innerHTML =
+        `<span class="text-sm">${esc(job.label)}</span>` +
+        `<span class="badge badge-${job.status}">${job.status}</span>`;
+      row.style.cursor = 'pointer';
+      row.onclick = () => {
+        const area = document.getElementById('test-job-area');
+        const outputEl = document.getElementById('test-output');
+        area.classList.remove('hidden');
+        outputEl.classList.remove('hidden');
+        outputEl.textContent = job.output || job.error || '(no output)';
+        document.getElementById('test-job-badge').className = 'badge badge-' + job.status;
+        document.getElementById('test-job-badge').textContent = job.status;
+        document.getElementById('test-running-indicator').classList.add('hidden');
+      };
+      el.appendChild(row);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load.</span>';
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// History tab
+// ────────────────────────────────────────────────────────────
+let _historyAgent = null;
+
+async function loadHistoryAgentChips() {
+  const chips = document.getElementById('agent-chips');
+  try {
+    const r = await fetch('/api/conversations/agents');
+    const data = await r.json();
+    // Rebuild (keep "All" chip)
+    chips.innerHTML = `<button class="chip${!_historyAgent ? ' active' : ''}" onclick="filterHistory(null, this)">All</button>`;
+    (data.agents || []).forEach(slug => {
+      const btn = document.createElement('button');
+      btn.className = 'chip' + (slug === _historyAgent ? ' active' : '');
+      btn.textContent = slug;
+      btn.onclick = () => filterHistory(slug, btn);
+      chips.appendChild(btn);
+    });
+  } catch {}
+}
+
+function filterHistory(agent, chipEl) {
+  _historyAgent = agent;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  if (chipEl) chipEl.classList.add('active');
+  loadHistory();
+}
+
+async function loadHistory() {
+  const el = document.getElementById('history-list');
+  el.innerHTML = '<span class="text-muted text-sm">Loading…</span>';
+  try {
+    const url = '/api/conversations' + (_historyAgent ? '?agent=' + encodeURIComponent(_historyAgent) : '');
+    const r = await fetch(url);
+    const data = await r.json();
+    const convos = data.conversations || [];
+    if (!convos.length) { el.innerHTML = '<span class="text-muted text-sm">No conversations recorded yet.</span>'; return; }
+    el.innerHTML = '';
+    convos.forEach(c => {
+      const entry = document.createElement('div');
+      entry.className = 'conv-entry';
+      const ts = new Date(c.timestamp).toLocaleString();
+      entry.innerHTML = `
+        <div class="conv-meta">
+          <span>${esc(c.agent)}</span>
+          <span>${ts}</span>
+        </div>
+        <div class="conv-transcript">${esc(c.transcript)}</div>
+        <div class="conv-response">${esc(c.response)}</div>`;
+      el.appendChild(entry);
+    });
+  } catch(e) {
+    el.innerHTML = '<span class="value err">Failed to load history.</span>';
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// Utilities
+// ────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ────────────────────────────────────────────────────────────
+// Init
+// ────────────────────────────────────────────────────────────
+fetchStatus();
+setInterval(fetchStatus, 10000);
+</script>
+</body>
+</html>

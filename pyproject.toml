@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "amini"
+dynamic = ["version"]
+description = "Offline voice AI assistant for Raspberry Pi"
+requires-python = ">=3.12"
+dependencies = [
+    "pyyaml",
+    "numpy",
+    "flask",
+    "packaging",
+    "ollama",
+    "sounddevice",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "pillow",
+    "pip-tools",
+]
+pi = [
+    "gpiozero",
+    "luma.oled",
+    "pillow",
+    "qrcode[pil]",
+    "smbus2",
+    "apa102",
+    "openwakeword",
+    "webrtcvad",
+    "faster-whisper",
+    "resemblyzer",
+]
+
+[project.scripts]
+amini = "cli:main"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "_version.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

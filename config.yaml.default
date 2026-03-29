@@ -1,0 +1,169 @@
+models:
+  stt:
+    name: tiny
+    backend: cpu
+    quant: int8
+    path: null                           # -> ~/.amini/models/stt/ (download_root)
+    version: tiny
+    eager: false
+    # To activate Hailo-10H acceleration for STT, replace the above with:
+    # backend: hailo
+    # path: hailo/whisper_tiny.hef       # -> ~/.amini/models/hailo/whisper_tiny.hef
+    # See core/hailo_stt.py for conversion instructions.
+  tts:
+    name: en_US-lessac-medium
+    backend: cpu
+    quant: none
+    path: en_US-lessac-medium.onnx       # filename -> ~/.amini/models/tts/en_US-lessac-medium.onnx
+    version: medium
+    eager: false
+  llm:
+    name: llama3.2:1b
+    backend: cpu
+    quant: none
+    path: null                           # -> ~/.amini/models/llm/ (OLLAMA_MODELS dir)
+    version: "1b"
+    eager: false
+  wake:
+    name: hey_assistant
+    backend: cpu
+    quant: none
+    path: null                           # -> ~/.amini/models/wake/ (download target)
+    version: hey_assistant
+    eager: true                          # loaded at startup for instant detection
+  vad:
+    name: webrtcvad
+    backend: cpu
+    quant: none
+    path: null
+    version: "2"                         # sensitivity level (0-3)
+    eager: true
+  speaker:
+    name: resemblyzer-ge2e
+    backend: cpu
+    quant: none
+    path: null                           # -> ~/.amini/models/speaker/ (model weights cache)
+    version: "ge2e"
+    eager: false                         # loaded on first voice interaction
+
+auto_update:
+  enabled: true
+  channel: stable
+  check_interval_sec: 1800
+  min_battery_pct: 30
+  health_check_retries: 3
+  repo_path: null                      # null = auto-detect from project root
+
+device:
+  display_timeout_sec: 15
+  hotspot_ssid: "AminiAI"
+  hotspot_password: "amini123"
+  wifi_rollover_timeout_sec: 20    # seconds to wait for WiFi before falling back to hotspot
+  button_pins:
+    power: 17
+    action: 27
+    interaction: 22
+
+device_server:
+  enabled: true
+  port: 5000
+
+default_agent: "qa"
+
+agents:
+  # Which agents are exposed for cycling via the interaction button.
+  # Order here determines cycling order. If omitted, all built-ins + plugins load.
+  exposed:
+    - llm_response
+    - planning
+    - block_timer
+  # "per_interaction" means use whichever agent is currently active.
+  action_agent: per_interaction
+  hotword_agent: per_interaction
+
+  # Per-agent configuration: enabled flag + equipped sub-agents.
+  # equipped_sub_agents lists the sub-agent slugs whose tools are visible to that agent.
+  # Changes here take effect immediately at runtime via the web UI (live reload).
+  config:
+    llm_response:
+      enabled: true
+      equipped_sub_agents: [memory, timer, conversation]
+    planning:
+      enabled: true
+      equipped_sub_agents: [memory, timer, conversation, hardware, updater, dependency]
+    block_timer:
+      enabled: true
+      equipped_sub_agents: [timer]
+    family_scheduler:
+      enabled: true
+      equipped_sub_agents: [memory, conversation]
+    shopping_list:
+      enabled: true
+      equipped_sub_agents: [memory, conversation]
+    kids_story:
+      enabled: true
+      equipped_sub_agents: [memory]
+    morning_briefing:
+      enabled: true
+      equipped_sub_agents: [memory, conversation]
+    family_intercom:
+      enabled: true
+      equipped_sub_agents: [memory, conversation]
+
+ally:
+  # Current interaction mode: manual | hot_word | ally
+  # Persisted to settings.json; this is just the default on first boot.
+  interaction_mode: hot_word
+
+  # Ally mode: how confident the LLM must be to speak autonomously (0–1).
+  # Currently gates whether the LLM SPEAK/SILENT decision is acted on.
+  threshold: 0.6
+
+  # How often (seconds) AllyListener evaluates ambient context to decide whether to speak.
+  check_interval_sec: 30
+
+  # Seconds of ambient audio context to retain in the rolling buffer.
+  ambient_buffer_sec: 120
+
+  # Max utterances to keep in the ambient context buffer.
+  max_ambient_utterances: 20
+
+  # Time of day for the daily eval_day run (HH:MM, 24-hour local time).
+  eval_day_time: "03:00"
+
+  # If true, eval_day appends a dated digest to soul.md after each evaluation.
+  update_soul_on_eval: false
+
+  # Owner considered "absent" from room if not heard for this many seconds.
+  owner_absent_threshold_sec: 300
+
+  # Ambient note chunk duration (seconds). A new AmbientNote is created every
+  # this many seconds of continuous listening.
+  ambient_chunk_sec: 180
+
+  # If true, unknown voice clips are played back to the owner for identification.
+  replay_unknown_voices: true
+
+  # Max seconds of audio saved per unknown-voice WAV clip.
+  unknown_voice_clip_sec: 5
+
+  # Number of recent journal entries scanned when building the journal snapshot.
+  journal_summary_last_n: 100
+
+  # How many days between full LLM reorganizations of the journal snapshot section.
+  # On non-reorganize nights a lightweight one-liner headline is appended instead.
+  soul_reorganize_interval_days: 30
+
+  # Which soul.md section receives the journal snapshot (updated each 3AM session).
+  journal_snapshot_section: "Journal Entry Snapshot"
+
+  # User-defined soul section framework — ordered list of desired headings.
+  # The Ally sees these before each journal session and may follow, adapt, or ignore them.
+  # Changes here take effect on the next journal session (no restart required).
+  soul_sections:
+    - "Identity"
+    - "Purpose"
+    - "Owner"
+    - "Core Values"
+    - "Journal Entry Snapshot"
+    - "Growth Notes"
