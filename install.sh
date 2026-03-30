@@ -10,18 +10,25 @@ apt update && apt full-upgrade -y
 raspi-config nonint do_i2c 0
 raspi-config nonint do_spi 0
 
-# Hailo AI HAT+ drivers
-apt install -y dkms hailo-all
+# Hailo AI HAT+ drivers (requires Hailo apt repo)
+apt install -y apt-transport-https curl gnupg
+curl -fsSL https://hailo-hailort.s3.eu-west-2.amazonaws.com/hailort-repo.gpg \
+    | gpg --dearmor -o /usr/share/keyrings/hailo-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hailo-archive-keyring.gpg] \
+https://hailo-hailort.s3.eu-west-2.amazonaws.com bookworm main" \
+    > /etc/apt/sources.list.d/hailo.list
+apt update
+apt install -y hailo-all
 
-# WM8960 Voice HAT audio driver
-git clone https://github.com/waveshare/WM8960-Audio-HAT.git /tmp/wm8960
-cd /tmp/wm8960
-sudo ./install.sh
+# seeed-voicecard driver for KEYESTUDIO ReSpeaker 2-Mic Pi HAT V1 (WM8960)
+git clone https://github.com/HinTak/seeed-voicecard.git /tmp/seeed-voicecard
+cd /tmp/seeed-voicecard
+./install.sh
 cd -
 
 # System dependencies
 apt install -y python3-pip python3-venv i2c-tools libatlas-base-dev git \
-    alsa-utils fonts-dejavu network-manager
+    alsa-utils fonts-dejavu network-manager libportaudio2
 
 # Project files live in the home directory — no /opt copy needed
 DEPLOY_DIR="$HOME/mobile-ami"
@@ -82,6 +89,11 @@ sed -i "s|/home/pi|$HOME|g" /etc/systemd/system/amini.service
 
 systemctl daemon-reload
 systemctl enable amini.service
+
+# Allow the running user to poweroff/reboot without a password (needed for power button hold)
+echo "$USER ALL=(ALL) NOPASSWD: /bin/systemctl poweroff, /bin/systemctl reboot" \
+    > /etc/sudoers.d/amini-poweroff
+chmod 440 /etc/sudoers.d/amini-poweroff
 
 echo "=== Installation complete! Rebooting in 5 seconds... ==="
 sleep 5

@@ -5,7 +5,7 @@ Fully offline, battery-powered, self-contained voice assistant for Raspberry Pi 
 **Features**
 - 100% offline (no cloud ever)
 - Hotword or manual trigger modes
-- Switchable agents (QA or Block Timer)
+- 9 built-in agents (general Q&A, planning, block timer, shopping list, kids stories, morning briefing, family intercom, family scheduler, companion)
 - OLED status display + QR hotspot
 - Automatic self-update (tagged releases only) with rollback
 - Rechargeable 18650 UPS (3–5+ hours runtime)
@@ -16,6 +16,7 @@ Fully offline, battery-powered, self-contained voice assistant for Raspberry Pi 
 2. Assemble the hardware (see [ASSEMBLY.md](ASSEMBLY.md)).
 3. SSH in and run:
    ```bash
-   git clone https://github.com/wilfullyapt/pi-local-ai-voice-assistant.git /opt/voice-assistant
-   cd /opt/voice-assistant
+   git clone https://github.com/wilfullyapt/mobile-ami.git ~/mobile-ami
+   cd ~/mobile-ami
    sudo bash install.sh
+   ```

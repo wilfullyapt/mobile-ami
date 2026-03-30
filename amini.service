@@ -1,6 +1,6 @@
 [Unit]
 Description=Local AI Voice Assistant
-After=network.target hailo.service ollama.service
+After=network.target ollama.service
 Wants=ollama.service
 
 [Service]

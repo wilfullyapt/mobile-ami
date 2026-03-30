@@ -75,7 +75,7 @@ The AI HAT+ 2 (Hailo-10H) connects via PCIe FFC — it does **not** use the 40-p
 5. Flash Raspberry Pi OS Lite (64-bit) with SSH + WiFi enabled.
 6. Insert SD, power via X1202 USB-C charger.
 7. SSH in and run the `install.sh` from README.md.
-8. Install the `seeed-voicecard` driver as directed by `install.sh` to enable ReSpeaker audio.
+8. `install.sh` installs the `seeed-voicecard` ALSA driver automatically — ReSpeaker audio is enabled after the reboot.
 
 ## First Boot
 - Device boots → OLED shows battery/network.
