@@ -29,7 +29,8 @@
 | 19 (PCM_FS) | I2S LR clock | ReSpeaker audio |
 | 20 (PCM_DIN) | I2S data in | ReSpeaker audio (mic) |
 | 21 (PCM_DOUT) | I2S data out | ReSpeaker audio (speaker) |
-| 17 | Button input | machine/power button |
+| 5 | Button input | machine/power button (GPIO 17 is ReSpeaker HAT onboard — conflict) |
+| 17 | ReSpeaker HAT onboard button | reserved — do not wire your power button here |
 | 27 | Button input | action button |
 | 22 | Button input | interaction button |
 

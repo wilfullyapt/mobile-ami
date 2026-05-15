@@ -54,13 +54,46 @@ auto_update:
   health_check_retries: 3
   repo_path: null                      # null = auto-detect from project root
 
+hardware:
+  audio:
+    # seeed_respeaker — Keyestudio ReSpeaker 2-Mic Pi HAT V1 (WM8960 / seeed-voicecard)
+    # default        — system default ALSA device
+    driver: seeed_respeaker
+    input_device: seeed-2mic-voicecard    # sounddevice mic input (null = system default)
+    output_device: seeed-2mic-voicecard   # sounddevice speaker output (null = system default)
+    alsa_output_device: null              # aplay -D device for TTS (null = system default)
+
+  display:
+    # sh1106  — Hosyond / most 1.3" I2C OLED modules  (SH1106 controller)
+    # ssd1306 — legacy 0.96" / 1.3" OLED modules      (SSD1306 controller)
+    driver: sh1106
+    i2c_address: "0x3C"
+    # timeout_sec is read from device.display_timeout_sec below if not set here
+
+  leds:
+    # apa102  — ReSpeaker 2-Mic Pi HAT (3 APA102 LEDs on SPI0 GPIO 10/11)
+    # none    — no LED strip fitted
+    driver: apa102
+    num_leds: 3
+    global_brightness: 31
+
+  power:
+    # x1202  — Geekworm X1202 UPS HAT (MAX17043-compatible fuel gauge at 0x36)
+    # mock   — returns fixed dummy values for dev/test
+    driver: x1202
+    i2c_address: "0x36"
+
+  buttons:
+    # lgpio is required for Raspberry Pi 5; rpigpio for Pi 4 and earlier
+    pin_factory: lgpio
+
 device:
   display_timeout_sec: 15
   hotspot_ssid: "AminiAI"
   hotspot_password: "amini123"
   wifi_rollover_timeout_sec: 20    # seconds to wait for WiFi before falling back to hotspot
   button_pins:
-    power: 17
+    power: 5       # GPIO 5 (pin 29) — GPIO 17 conflicts with ReSpeaker HAT onboard button
     action: 27
     interaction: 22
 

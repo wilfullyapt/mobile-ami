@@ -48,9 +48,10 @@
 |---|---|---|---|
 | 2 (SDA) | 3 | I2C data | OLED (0x3C), WM8960 (0x1A), X1202 gauge (0x36) |
 | 3 (SCL) | 5 | I2C clock | (shared bus) |
+| 5 | 29 | Button input | Power/machine button → GND |
 | 10 (MOSI) | 19 | SPI0 data | ReSpeaker APA102 LEDs |
 | 11 (CLK) | 23 | SPI0 clock | ReSpeaker APA102 LEDs |
-| 17 | 11 | Button input | Power/machine button → GND |
+| 17 | 11 | ReSpeaker HAT onboard button — **do not wire your power button here** |
 | 18 (PCM_CLK) | 12 | I2S bit clock | ReSpeaker audio — **reserved, do not use** |
 | 19 (PCM_FS) | 35 | I2S LR clock | ReSpeaker audio — **reserved, do not use** |
 | 20 (PCM_DIN) | 38 | I2S data in | ReSpeaker audio — **reserved, do not use** |
@@ -62,7 +63,7 @@ The AI HAT+ 2 (Hailo-10H) connects via PCIe FFC — it does **not** use the 40-p
 
 ## Wiring (discrete components only — HAT handles its own pins)
 - OLED: VCC → 3.3 V (pin 1), GND → GND, SDA → GPIO 2 (pin 3), SCL → GPIO 3 (pin 5)
-- Power button: one leg → GND, other → GPIO 17 (pin 11)
+- Power button: one leg → GND, other → GPIO 5 (pin 29) — **not GPIO 17**, which is claimed by the ReSpeaker HAT's onboard button
 - Action button: one leg → GND, other → GPIO 27 (pin 13)
 - Interaction button: one leg → GND, other → GPIO 22 (pin 15)
 - ReSpeaker LEDs and audio are handled by the HAT itself.

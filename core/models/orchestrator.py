@@ -2,12 +2,15 @@ from typing import Any, Optional
 from core.models.registry import ModelRegistry, ModelRole, ModelSpec, Backend
 
 
-def _build_instance(spec: ModelSpec) -> Any:
+def _build_instance(spec: ModelSpec, tts_output_device: Optional[str] = None) -> Any:
     """
     Factory: the single place that constructs each model type.
     Imports are local so uninstalled libraries don't break module import.
     Returns the typed wrapper class for each role so the rest of the
     codebase works against stable interfaces rather than raw model objects.
+
+    tts_output_device is forwarded to TTS so aplay routes to the correct
+    ALSA card (e.g. 'seeed-2mic-voicecard'). None = system default.
     """
     if spec.role == ModelRole.STT:
         if spec.backend == Backend.HAILO:
@@ -18,7 +21,7 @@ def _build_instance(spec: ModelSpec) -> Any:
 
     if spec.role == ModelRole.TTS:
         from core.models.wrappers.tts import TTS
-        return TTS(spec)
+        return TTS(spec, alsa_device=tts_output_device)
 
     if spec.role == ModelRole.LLM:
         from core.models.wrappers.llm import LLM
@@ -47,12 +50,17 @@ class ModelOrchestrator:
     - Enforces single Hailo-10H slot (one Hailo model at a time)
     - Supports hot-swapping via swap()
     - Preloads eager models at startup via preload_eager()
+
+    tts_output_device: ALSA device name forwarded to TTS.speak() for aplay.
+    Pass AudioDevice.alsa_output_device from HardwareFactory so the TTS output
+    routes to the same ALSA card as the mic input.
     """
 
-    def __init__(self, registry: ModelRegistry):
+    def __init__(self, registry: ModelRegistry, tts_output_device: Optional[str] = None):
         self._registry = registry
         self._instances: dict[ModelRole, Any] = {}
         self._hailo_slot_taken: bool = False
+        self._tts_output_device = tts_output_device
 
     def get(self, role: ModelRole) -> Any:
         """Return the loaded model instance, loading lazily if needed."""
@@ -126,7 +134,7 @@ class ModelOrchestrator:
                     "Swap the current Hailo model first."
                 )
             self._hailo_slot_taken = True
-        self._instances[role] = _build_instance(spec)
+        self._instances[role] = _build_instance(spec, self._tts_output_device)
 
     def _unload(self, role: ModelRole):
         inst = self._instances.pop(role, None)

@@ -7,12 +7,9 @@ from pathlib import Path
 
 import yaml
 
-from hardware.audio import AudioManager
 from hardware.buttons import DeviceButtons
-from hardware.display import StatusDisplay
-from hardware.leds import LEDs
+from hardware.factory import HardwareFactory
 from hardware.network_manager import NetworkManager
-from hardware.power import get_battery
 
 from core.agent_context import AgentContext
 from core.ami_paths import AmiPaths
@@ -86,9 +83,35 @@ class VoiceAssistant:
         # ── Voice profiles ─────────────────────────────────────────────
         self.voice_profiles = VoiceProfileManager(self.paths.profiles_dir)
 
+        # ── Hardware layer ─────────────────────────────────────────────
+        # Constructed before the model layer so audio.alsa_output_device can be
+        # forwarded to the TTS wrapper via the orchestrator.  configure_gpio()
+        # must also run before DeviceButtons (created near the end of __init__)
+        # creates any gpiozero Button objects.
+        hw = HardwareFactory(self.config)
+        hw.configure_gpio()
+
+        dev_cfg = self.config.get("device", {})
+        # Allow legacy device.display_timeout_sec to fill in for installs that
+        # don't yet have a hardware.display section in config.yaml.
+        hw_cfg = self.config.setdefault("hardware", {})
+        hw_cfg.setdefault("display", {}).setdefault(
+            "timeout_sec", dev_cfg.get("display_timeout_sec", 15)
+        )
+
+        self.audio = hw.create_audio()
+        self.display = hw.create_display()
+        self.leds = hw.create_leds()
+        self.power = hw.create_power()
+        self.network = NetworkManager(self.config)
+        self.updater = AutoUpdater(self.network, self.config)
+
         # ── Model layer ────────────────────────────────────────────────
         registry = ModelRegistry(self.config["models"], self.paths)
-        self.orchestrator = ModelOrchestrator(registry)
+        self.orchestrator = ModelOrchestrator(
+            registry,
+            tts_output_device=self.audio.alsa_output_device,
+        )
         self.orchestrator.preload_eager()   # loads VAD + wake detector at startup
         self.orchestrator.preload_for_mode(self.mode_manager.mode)
 
@@ -98,14 +121,6 @@ class VoiceAssistant:
 
         # ── IPC bus ────────────────────────────────────────────────────
         self.bus = ProcessBus()
-
-        # ── Hardware layer (before tools so sub-agents can hold refs) ──
-        dev_cfg = self.config.get("device", {})
-        self.display = StatusDisplay(timeout_sec=dev_cfg.get("display_timeout_sec", 15))
-        self.network = NetworkManager(self.config)
-        self.leds = LEDs()
-        self.audio = AudioManager()
-        self.updater = AutoUpdater(self.network, self.config)
 
         # ── Shared agent context ───────────────────────────────────────
         self.agent_context = AgentContext.empty()
@@ -247,8 +262,9 @@ class VoiceAssistant:
         threading.Thread(target=self._status_loop, daemon=True).start()
         self.eval_day.start()
 
+        _bat, _volt = self.power.get_battery()
         self.display.update(
-            50, 4.1, "offline", "", self.agent_manager.current,
+            _bat, _volt, "offline", "", self.agent_manager.current,
             interaction_mode=self.mode_manager.mode.value,
         )
         self.leds.set_color("green")
@@ -268,7 +284,7 @@ class VoiceAssistant:
 
     def _status_loop(self):
         while True:
-            bat, volt = get_battery()
+            bat, volt = self.power.get_battery()
             self.display.update(
                 bat, volt,
                 self.network.state,

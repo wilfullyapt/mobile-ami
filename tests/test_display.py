@@ -11,7 +11,8 @@ def _make_display(timeout_sec=60):
     fake_device.height = 64
 
     sys.modules["luma.core.interface.serial"].i2c = MagicMock(return_value=MagicMock())
-    sys.modules["luma.oled.device"].ssd1306 = MagicMock(return_value=fake_device)
+    # StatusDisplay now uses sh1106 (SH1106 controller — the actual hardware fitted)
+    sys.modules["luma.oled.device"].sh1106 = MagicMock(return_value=fake_device)
 
     # Ensure hardware.display is importable before patch() resolves it
     import hardware.display  # noqa: F401

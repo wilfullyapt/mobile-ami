@@ -31,7 +31,10 @@ sys.modules.setdefault("luma.core.interface", _stub("luma.core.interface"))
 sys.modules.setdefault("luma.core.interface.serial", _stub("luma.core.interface.serial", i2c=MagicMock))
 sys.modules.setdefault("luma.core.render", _stub("luma.core.render"))
 sys.modules.setdefault("luma.oled", _stub("luma.oled"))
-sys.modules.setdefault("luma.oled.device", _stub("luma.oled.device", ssd1306=MagicMock))
+sys.modules.setdefault(
+    "luma.oled.device",
+    _stub("luma.oled.device", sh1106=MagicMock, ssd1306=MagicMock),
+)
 
 # ── ML / inference ───────────────────────────────────────────────────────────
 sys.modules.setdefault("openwakeword", _stub("openwakeword"))

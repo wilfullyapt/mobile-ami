@@ -1,51 +1,74 @@
+"""
+Display drivers for status OLED screens.
+
+StatusDisplay   SH1106-based 128×64 OLED (default — Hosyond and most 1.3" modules).
+SSD1306Display  Alternative for older SSD1306-based 0.96" / 1.3" modules.
+
+Both expose the same DisplayDevice interface so the rest of the codebase
+never needs to know which controller is fitted.
+"""
 import threading
 
 import qrcode
 from luma.core.interface.serial import i2c
-from luma.oled.device import ssd1306
+from luma.oled.device import sh1106
 from PIL import Image, ImageDraw, ImageFont
+
+from hardware.abstract import DisplayDevice
 
 
 _PAGE_DWELL_SEC = 5   # seconds each page is shown before cycling
 
 
-class StatusDisplay:
+class StatusDisplay(DisplayDevice):
     """
-    SSD1306 128×64 OLED display with:
-      - 15-second auto-off timeout (reset on every update)
-      - toggle() to turn screen on or off (called by machine button)
+    SH1106 128×64 OLED display (I2C) with:
+      - Configurable auto-off timeout (reset on every update)
+      - wake() to turn screen on / reset timer (called by machine button)
       - Two-page cycling when a device server URL is set:
-          page "stats" → battery / network / agent / server URL
-          page "qr"    → full-screen QR code linking to device server
+            page "stats" → battery / network / agent / server URL
+            page "qr"    → full-screen QR code linking to the device server
     """
 
-    def __init__(self, timeout_sec: int = 15):
-        serial = i2c(port=1, address=0x3C)
-        self.device = ssd1306(serial)
-        self.font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10)
+    def __init__(self, cfg: dict | None = None, timeout_sec: int | None = None, _luma_cls=None):
+        """
+        cfg          : hardware.display config dict (optional).
+        timeout_sec  : seconds before the display sleeps; overrides cfg value.
+        _luma_cls    : injected luma device class — used by SSD1306Display to
+                       swap in ssd1306 without duplicating all the logic.
+        """
+        cfg = cfg or {}
+        self._timeout_sec = (
+            timeout_sec if timeout_sec is not None
+            else cfg.get("timeout_sec", 15)
+        )
+        addr = int(cfg.get("i2c_address", "0x3C"), 16)
+
+        luma_cls = _luma_cls or sh1106
+        serial = i2c(port=1, address=addr)
+        self.device = luma_cls(serial)
+
+        self.font = ImageFont.truetype(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 10
+        )
         self.big_font = ImageFont.truetype(
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 12
         )
 
         self._lock = threading.Lock()
         self._on = True
-        self._timeout_sec = timeout_sec
         self._timer: threading.Timer | None = None
         self._page = "stats"
         self._page_timer: threading.Timer | None = None
         self._server_url: str | None = None
-
-        # Cache of last stats for re-render
         self._last: dict = {}
 
         self._reset_timeout()
 
-    # ------------------------------------------------------------------
-    # Public interface
-    # ------------------------------------------------------------------
+    # ── DisplayDevice interface ───────────────────────────────────────────────
 
     def wake(self):
-        """Called by machine button press — turn on for 15 s (or reset timer if already on)."""
+        """Called by machine button press — turn on for timeout_sec (or reset timer)."""
         with self._lock:
             if self._on:
                 self._reset_timeout()
@@ -53,7 +76,7 @@ class StatusDisplay:
                 self._turn_on()
 
     def toggle(self):
-        """Flip screen on/off programmatically (not used by buttons)."""
+        """Flip screen on/off programmatically."""
         with self._lock:
             if self._on:
                 self._turn_off()
@@ -84,10 +107,7 @@ class StatusDisplay:
         update_pending: bool = False,
         status_text: str = "Ready",
     ):
-        """
-        Refresh the stats page cache and re-render if the screen is on.
-        Does NOT wake a sleeping display.
-        """
+        """Refresh the stats cache and re-render if the display is on."""
         self._last = {
             "battery_pct": battery_pct,
             "voltage": voltage,
@@ -105,8 +125,8 @@ class StatusDisplay:
                 if self._page == "stats":
                     self._render_stats()
 
-    def update_mode(self, agent: str, interaction_mode: str = None):
-        """Partial update: change the active agent (and optionally the interaction mode)."""
+    def update_mode(self, agent: str, interaction_mode: str | None = None):
+        """Partial update: change the active agent (and optionally the mode)."""
         if self._last:
             self._last["agent"] = agent
             if interaction_mode is not None:
@@ -115,9 +135,7 @@ class StatusDisplay:
                 if self._on and self._page == "stats":
                     self._render_stats()
 
-    # ------------------------------------------------------------------
-    # Internal: on/off
-    # ------------------------------------------------------------------
+    # ── Internal: on/off ─────────────────────────────────────────────────────
 
     def _turn_on(self):
         self._on = True
@@ -139,9 +157,7 @@ class StatusDisplay:
             if self._on:
                 self._turn_off()
 
-    # ------------------------------------------------------------------
-    # Internal: timeout timer
-    # ------------------------------------------------------------------
+    # ── Internal: timeout timer ───────────────────────────────────────────────
 
     def _reset_timeout(self):
         self._cancel_timer()
@@ -154,9 +170,7 @@ class StatusDisplay:
             self._timer.cancel()
             self._timer = None
 
-    # ------------------------------------------------------------------
-    # Internal: page cycling (stats ↔ qr)
-    # ------------------------------------------------------------------
+    # ── Internal: page cycling (stats ↔ qr) ──────────────────────────────────
 
     def _start_page_cycling(self):
         self._cancel_page_timer()
@@ -177,9 +191,7 @@ class StatusDisplay:
             self._page_timer.cancel()
             self._page_timer = None
 
-    # ------------------------------------------------------------------
-    # Internal: rendering
-    # ------------------------------------------------------------------
+    # ── Internal: rendering ───────────────────────────────────────────────────
 
     def _render(self):
         if self._page == "qr" and self._server_url:
@@ -203,18 +215,13 @@ class StatusDisplay:
         has_internet = d.get("has_internet", False)
         update_pending = d.get("update_pending", False)
 
-        # Line 0: battery
         draw.text((0, 0), f"Bat: {bat}%  {volt}V", font=self.font, fill=255)
 
-        # Line 1: network with internet indicator
         net_indicator = "[+]" if has_internet else "[-]"
-        net_line = f"Net: {net}{net_indicator} {ssid}"
-        draw.text((0, 12), net_line, font=self.font, fill=255)
+        draw.text((0, 12), f"Net: {net}{net_indicator} {ssid}", font=self.font, fill=255)
 
-        # Line 2: active agent (big font — the primary context indicator)
         draw.text((0, 24), agent.upper(), font=self.big_font, fill=255)
 
-        # Line 3: interaction mode | status / update indicator
         status_part = "Update!" if update_pending else "Ready"
         mode_line = f"{imode}  {status_part}" if imode else status_part
         draw.text((0, 38), mode_line, font=self.font, fill=255)
@@ -233,10 +240,17 @@ class StatusDisplay:
         qr.make(fit=True)
         qr_img = qr.make_image(fill_color=1, back_color=0).convert("1")
 
-        # Centre the QR image on the 128×64 canvas
         canvas = Image.new("1", (self.device.width, self.device.height), 0)
         qw, qh = qr_img.size
         x = (self.device.width - qw) // 2
         y = (self.device.height - qh) // 2
         canvas.paste(qr_img, (x, y))
         self.device.display(canvas)
+
+
+class SSD1306Display(StatusDisplay):
+    """Alternative driver for SSD1306-based 0.96″ or 1.3″ OLED modules."""
+
+    def __init__(self, cfg: dict | None = None, timeout_sec: int | None = None):
+        from luma.oled.device import ssd1306
+        super().__init__(cfg, timeout_sec, _luma_cls=ssd1306)
