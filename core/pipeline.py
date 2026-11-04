@@ -55,6 +55,7 @@ class VoicePipeline:
         conv_logger=None,
         voice_profiles=None,
         agent_context=None,
+        voxmetrica=None,
     ):
         self._orch = orchestrator
         self._agents = agent_manager
@@ -64,6 +65,7 @@ class VoicePipeline:
         self._conv_logger = conv_logger
         self._voice_profiles = voice_profiles  # Optional[VoiceProfileManager]
         self._agent_context = agent_context    # Optional[AgentContext]
+        self._voxmetrica = voxmetrica          # Optional[VoxMetricaBridge]
 
     # ------------------------------------------------------------------
     # Public interface
@@ -120,11 +122,28 @@ class VoicePipeline:
         """
         Optionally identify the speaker from the recorded audio.
 
-        Runs only when a VoiceProfileManager has been wired in and the
-        orchestrator has a SPEAKER encoder loaded. Silently skips otherwise
-        so the rest of the pipeline is unaffected on devices without this
-        feature configured.
+        Prefer VoxMetrica bridge when wired (hub gallery SoR). Else fall back
+        to local VoiceProfileManager + Resemblyzer when SPEAKER model is loaded.
         """
+        # VoxMetrica path (optional)
+        vox = getattr(self, "_voxmetrica", None)
+        if vox is not None and getattr(vox, "available", False) and ctx.audio is not None:
+            try:
+                profile, confidence = vox.identify(ctx.audio, None)
+                if profile:
+                    ctx.speaker = profile.name
+                    ctx.speaker_role = getattr(profile, "role", None) or "adult"
+                    ctx.speaker_confidence = confidence
+                    logger.info(
+                        "Speaker (voxmetrica): %s conf=%.2f outcome=%s",
+                        profile.name,
+                        confidence,
+                        getattr(profile, "outcome", ""),
+                    )
+                    return
+            except Exception as e:  # noqa: BLE001
+                logger.warning("VoxMetrica identify failed: %s", e)
+
         if self._voice_profiles is None:
             return
         if not self._orch.has(ModelRole.SPEAKER):

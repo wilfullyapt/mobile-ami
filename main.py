@@ -247,6 +247,9 @@ class VoiceAssistant:
         self.buttons = DeviceButtons(self.config, self.display, self.network, self)
 
         # ── Pipeline ───────────────────────────────────────────────────
+        from core.voxmetrica_bridge import maybe_build_bridge_from_env
+
+        self._voxmetrica = maybe_build_bridge_from_env()
         self.pipeline = VoicePipeline(
             orchestrator=self.orchestrator,
             agent_manager=self.agent_manager,
@@ -256,6 +259,7 @@ class VoiceAssistant:
             conv_logger=self.conv_logger,
             voice_profiles=self.voice_profiles,
             agent_context=self.agent_context,
+            voxmetrica=self._voxmetrica,
         )
 
         # ── Background threads ─────────────────────────────────────────
